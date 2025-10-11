@@ -1,19 +1,36 @@
 import 'package:flutter/material.dart';
 import '../models/news_article.dart';
 import '../widgets/news_card.dart';
+import '../data/shorts_data.dart';
 
 class HomeTab extends StatefulWidget {
-  const HomeTab({super.key});
+  final bool isLocalSelected;
+  final VoidCallback onLocalToggle;
+
+  const HomeTab({
+    super.key,
+    required this.isLocalSelected,
+    required this.onLocalToggle,
+  });
 
   @override
   State<HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
+class _HomeTabState extends State<HomeTab>
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late TabController _tabController;
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  bool _isLocalSelected = false;
+
+  // Cache management
+  List<NewsArticle>? _cachedShorts; // Cache the shorts
+  bool _isLoading = false;
+  bool _isLoadingMore = false;
+  String? _errorMessage;
+  int _currentOffset = 0;
+  final int _pageSize = 20;
+  bool _hasMoreData = true;
 
   final List<String> categories = [
     'Feed',
@@ -23,63 +40,133 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     'Insights'
   ];
 
-  // Sample news articles
-  final List<NewsArticle> newsArticles = [
-    NewsArticle(
-      title: "The day Yuvraj hands his kids to me, they'll meet same fate as he did: Yograj",
-      content: "Ex-cricketer Yograj Singh said the day his son Yuvraj Singh hands his children over to him, they'll meet the same fate as Yuvraj did. \"You can only forge gold through fire. There'll be no mercy...That's what they fear, and that's why we aren't together,\" he added. Yograj said he first met Yuvraj's son Orion when he was two years old.",
-      source: 'Indian Express',
-      author: 'Bhawana Chaudhary',
-      time: 'few hours ago',
-      imageUrl: 'https://images.indianexpress.com/2025/10/Delhi-cops-2.jpg',
-      newsUrl: 'https://indianexpress.com/article/cities/delhi/accused-of-doctors-murder-robberies-nepali-killed-in-encounter-10292287/',
-      readMore: "Test",
-    ),
-    NewsArticle(
-      title: "White House responds as Trump doesn't win Nobel, says 'He'll continue saving lives'",
-      content: "The White House has responded after Donald Trump didn't win the Nobel Peace Prize 2025. A spokesperson said Trump will continue his work of saving lives and promoting peace globally.",
-      source: 'Reuters',
-      author: 'John Smith',
-      time: '2 hours ago',
-      imageUrl: 'https://example.com/trump.jpg',
-      newsUrl: 'https://reuters.com/world/us',
-      readMore: "Test",
-    ),
-    NewsArticle(
-      title: "Gaza ceasefire comes into effect, says Israel",
-      content: "Israel announced that the Gaza ceasefire has officially come into effect. The ceasefire was brokered after weeks of negotiations and is expected to bring temporary relief to the region.",
-      source: 'BBC',
-      author: 'Sarah Johnson',
-      time: '3 hours ago',
-      imageUrl: 'https://example.com/gaza.jpg',
-      newsUrl: 'https://bbc.com/news/world-middle-east',
-      readMore: "Test",
-    ),
-  ];
+  @override
+  bool get wantKeepAlive => true; // Keep state alive
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: categories.length, vsync: this);
+    _loadInitialShorts();
+
+    // Listen to page changes to load more when near end
+    _pageController.addListener(_onPageScroll);
+  }
+
+  void _onPageScroll() {
+    if (_pageController.hasClients && _cachedShorts != null) {
+      final maxScroll = _pageController.position.maxScrollExtent;
+      final currentScroll = _pageController.position.pixels;
+      final delta = maxScroll - currentScroll;
+
+      // Load more when user is 3 items away from the end
+      if (delta <= 3 * MediaQuery.of(context).size.height &&
+          !_isLoadingMore &&
+          _hasMoreData) {
+        _loadMoreShorts();
+      }
+    }
+  }
+
+  Future<void> _loadInitialShorts() async {
+    if (_cachedShorts != null) {
+      // Already loaded, don't fetch again
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final shorts = await fetchShorts();
+      _currentOffset += shorts.length;
+      
+      if (mounted) {
+        setState(() {
+          _cachedShorts = shorts;
+          _isLoading = false;
+          _currentOffset = shorts.length;
+          _hasMoreData = shorts.length >= _pageSize;
+        });
+        debugPrint('✅ Initial load: ${shorts.length} shorts');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Error loading news: $e';
+        });
+        debugPrint('❌ Error loading initial shorts: $e');
+      }
+    }
+  }
+
+  Future<void> _loadMoreShorts() async {
+    if (_isLoadingMore || !_hasMoreData) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      // In a real app, you'd pass offset/limit to fetch next batch
+      // For now, we'll simulate by fetching again
+      
+      final moreShorts = await fetchShorts(offset: _currentOffset, limit: _pageSize);
+      _currentOffset += moreShorts.length;
+
+      if (mounted) {
+        setState(() {
+          if (moreShorts.isNotEmpty) {
+            // Remove duplicates and add new shorts
+            final existingUrls = _cachedShorts!.map((s) => s.newsUrl).toSet();
+            final newShorts = moreShorts
+                .where((s) => !existingUrls.contains(s.newsUrl))
+                .toList();
+            
+            _cachedShorts!.addAll(newShorts);
+            _currentOffset += newShorts.length;
+            _hasMoreData = newShorts.isNotEmpty && newShorts.length >= _pageSize;
+          } else {
+            _hasMoreData = false;
+          }
+          _isLoadingMore = false;
+        });
+        debugPrint('✅ Loaded more: ${moreShorts.length} shorts, total: ${_cachedShorts!.length}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+        debugPrint('❌ Error loading more shorts: $e');
+      }
+    }
+  }
+
+  Future<void> _refreshShorts() async {
+    setState(() {
+      _cachedShorts = null; // Clear cache
+      _currentOffset = 0;
+      _hasMoreData = true;
+    });
+    await _loadInitialShorts();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     super.dispose();
   }
 
-  void _local() {
-    setState(() {
-      _isLocalSelected = !_isLocalSelected;
-    });
-    debugPrint('Local button clicked - Selected: $_isLocalSelected');
-    // Add your local news filtering logic here
-  }
-
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -94,18 +181,20 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     children: [
                       // Static Local button
                       Padding(
-                        padding: const EdgeInsets.only(left: 12, top: 12, bottom: 12),
+                        padding: const EdgeInsets.only(
+                            left: 12, top: 12, bottom: 12),
                         child: GestureDetector(
-                          onTap: _local,
+                          onTap: widget.onLocalToggle,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 2),
                             decoration: BoxDecoration(
-                              color: _isLocalSelected 
+                              color: widget.isLocalSelected
                                   ? const Color(0xFF2196F3).withOpacity(0.15)
                                   : Colors.grey[900],
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: _isLocalSelected 
+                                color: widget.isLocalSelected
                                     ? const Color(0xFF2196F3)
                                     : Colors.grey[800]!,
                                 width: 1,
@@ -114,11 +203,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             child: Text(
                               'Local',
                               style: TextStyle(
-                                color: _isLocalSelected 
+                                color: widget.isLocalSelected
                                     ? const Color(0xFF2196F3)
                                     : Colors.grey[400],
                                 fontSize: 14,
-                                fontWeight: _isLocalSelected 
+                                fontWeight: widget.isLocalSelected
                                     ? FontWeight.w600
                                     : FontWeight.w500,
                               ),
@@ -145,17 +234,20 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             fontSize: 16,
                             fontWeight: FontWeight.normal,
                           ),
-                          labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          labelPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
                           tabAlignment: TabAlignment.start,
                           padding: EdgeInsets.zero,
-                          tabs: categories.map((category) => Text(category)).toList(),
+                          tabs: categories
+                              .map((category) => Text(category))
+                              .toList(),
                         ),
                       ),
                     ],
                   ),
-                  // Gradient fade effect on the left side of scrollable tabs
+                  // Gradient fade effect
                   Positioned(
-                    left: 80, // Position after Local button
+                    left: 80,
                     top: 0,
                     bottom: 0,
                     child: IgnorePointer(
@@ -179,25 +271,151 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
             ),
             // News cards
             Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                scrollDirection: Axis.vertical,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPage = index;
-                  });
-                },
-                itemCount: newsArticles.length,
-                itemBuilder: (context, index) {
-                  return Transform.translate(
-                    offset: const Offset(0, -10),
-                    child: NewsCard(article: newsArticles[index]),
-                  );
-                },
-              ),
+              child: _buildContent(),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    // Initial loading
+    if (_isLoading && _cachedShorts == null) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF2196F3),
+        ),
+      );
+    }
+
+    // Error state
+    if (_errorMessage != null && _cachedShorts == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 60, color: Colors.grey[600]),
+            const SizedBox(height: 16),
+            Text(
+              'Error loading news',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _loadInitialShorts,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2196F3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Empty state
+    if (_cachedShorts == null || _cachedShorts!.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.article_outlined, size: 60, color: Colors.grey[600]),
+            const SizedBox(height: 16),
+            Text(
+              'No news available',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Check back later for updates',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _refreshShorts,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2196F3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text('Refresh'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Content loaded - show with pull to refresh
+    return RefreshIndicator(
+      onRefresh: _refreshShorts,
+      color: const Color(0xFF2196F3),
+      backgroundColor: Colors.grey[900],
+      child: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        onPageChanged: (index) {
+          setState(() {
+            _currentPage = index;
+          });
+        },
+        itemCount: _cachedShorts!.length + (_hasMoreData ? 1 : 0),
+        itemBuilder: (context, index) {
+          // Show loading indicator at the end
+          if (index == _cachedShorts!.length) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(
+                      color: Color(0xFF2196F3),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Loading more...',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return Transform.translate(
+            offset: const Offset(0, -10),
+            child: NewsCard(article: _cachedShorts![index]),
+          );
+        },
       ),
     );
   }

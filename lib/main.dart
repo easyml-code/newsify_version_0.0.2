@@ -1,24 +1,29 @@
+import 'screens/language_selection_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/language_selection_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
+import 'config/config.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
+  
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
-  runApp(const InShortsApp());
+
+  await AppConfig.init();
+
+  runApp(const NewsifyApp());
 }
 
-class InShortsApp extends StatelessWidget {
-  const InShortsApp({super.key});
+class NewsifyApp extends StatelessWidget {
+  const NewsifyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'InShorts',
+      title: 'Newsify',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,

@@ -11,25 +11,37 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 1; // Start with home tab
+  int _currentIndex = 1;
+  bool isLocalSelected = false;
 
-  final List<Widget> _tabs = [
-    const InsightsTab(),
-    const HomeTab(),
-    const AccountTab(),
-  ];
+  void toggleLocalSelection() {
+    setState(() {
+      isLocalSelected = !isLocalSelected;
+    });
+    debugPrint('Local button clicked - Selected: $isLocalSelected');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> tabs = [
+      const InsightsTab(),
+      HomeTab(
+        isLocalSelected: isLocalSelected,
+        onLocalToggle: toggleLocalSelection,
+      ),
+      const AccountTab(),
+    ];
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: _tabs[_currentIndex],
+      body: tabs[_currentIndex],
       bottomNavigationBar: Container(
         color: Colors.black,
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.only(left: 40, right: 40, top: 4, bottom: 4),
+            padding:
+                const EdgeInsets.only(left: 40, right: 40, top: 4, bottom: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
