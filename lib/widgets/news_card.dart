@@ -108,7 +108,9 @@ class NewsCard extends StatelessWidget {
 
                       // Meta info
                       Text(
-                        '${article.time} | ${article.author} | ${article.source}',
+                        article.author != 'Unknown'
+                        ? '${article.time} | ${article.author} | ${article.source}'
+                        : '${article.time} | ${article.source}',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 11,

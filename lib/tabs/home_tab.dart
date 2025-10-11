@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/news_article.dart';
 import '../widgets/news_card.dart';
 import '../data/shorts_data.dart';
+import '../services/cache_manager.dart';
 
 class HomeTab extends StatefulWidget {
   final bool isLocalSelected;
@@ -21,16 +22,24 @@ class _HomeTabState extends State<HomeTab>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late TabController _tabController;
   final PageController _pageController = PageController();
+  final CacheManager _cacheManager = CacheManager();
+  
   int _currentPage = 0;
-
-  // Cache management
-  List<NewsArticle>? _cachedShorts; // Cache the shorts
   bool _isLoading = false;
   bool _isLoadingMore = false;
   String? _errorMessage;
   int _currentOffset = 0;
   final int _pageSize = 20;
   bool _hasMoreData = true;
+
+  // Category mapping
+  final Map<String, String> _categoryMapping = {
+    'Feed': '',
+    'Finance': 'Finance',
+    'Timelines': 'Timelines',
+    'Videos': 'Videos',
+    'Insights': 'Insights',
+  };
 
   final List<String> categories = [
     'Feed',
@@ -40,21 +49,38 @@ class _HomeTabState extends State<HomeTab>
     'Insights'
   ];
 
+  String get _currentCategory => categories[_tabController.index];
+  String? get _currentCategoryFilter => _categoryMapping[_currentCategory];
+
   @override
-  bool get wantKeepAlive => true; // Keep state alive
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: categories.length, vsync: this);
-    _loadInitialShorts();
+    
+    // Listen to tab changes
+    _tabController.addListener(_onTabChanged);
+    
+    // Load initial data for Feed
+    _loadShortsForCurrentCategory();
 
-    // Listen to page changes to load more when near end
+    // Listen to page changes for pagination
     _pageController.addListener(_onPageScroll);
   }
 
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      debugPrint('📑 Tab changed to: $_currentCategory');
+      _loadShortsForCurrentCategory();
+    }
+  }
+
   void _onPageScroll() {
-    if (_pageController.hasClients && _cachedShorts != null) {
+    final cachedShorts = _cacheManager.getCachedShorts(_currentCategory);
+    
+    if (_pageController.hasClients && cachedShorts != null) {
       final maxScroll = _pageController.position.maxScrollExtent;
       final currentScroll = _pageController.position.pixels;
       final delta = maxScroll - currentScroll;
@@ -68,29 +94,43 @@ class _HomeTabState extends State<HomeTab>
     }
   }
 
-  Future<void> _loadInitialShorts() async {
-    if (_cachedShorts != null) {
-      // Already loaded, don't fetch again
+  Future<void> _loadShortsForCurrentCategory() async {
+    // Check if we have cached data for this category
+    if (_cacheManager.hasCachedShorts(_currentCategory)) {
+      debugPrint('✅ Using cached data for $_currentCategory');
+      setState(() {
+        _errorMessage = null;
+      });
       return;
     }
 
+    // No cache, fetch from database
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _currentOffset = 0;
+      _hasMoreData = true;
     });
 
     try {
-      final shorts = await fetchShorts();
-      _currentOffset += shorts.length;
-      
+      final shorts = await fetchShorts(
+        limit: _pageSize,
+        offset: 0,
+        category: _currentCategoryFilter,
+        randomizeOrder: true,
+      );
+
       if (mounted) {
+        // Cache the fetched shorts
+        _cacheManager.cacheShorts(_currentCategory, shorts);
+        _currentOffset = shorts.length;
+        
         setState(() {
-          _cachedShorts = shorts;
           _isLoading = false;
-          _currentOffset = shorts.length;
           _hasMoreData = shorts.length >= _pageSize;
         });
-        debugPrint('✅ Initial load: ${shorts.length} shorts');
+        
+        debugPrint('✅ Loaded ${shorts.length} shorts for $_currentCategory');
       }
     } catch (e) {
       if (mounted) {
@@ -98,7 +138,7 @@ class _HomeTabState extends State<HomeTab>
           _isLoading = false;
           _errorMessage = 'Error loading news: $e';
         });
-        debugPrint('❌ Error loading initial shorts: $e');
+        debugPrint('❌ Error loading shorts: $e');
       }
     }
   }
@@ -111,30 +151,28 @@ class _HomeTabState extends State<HomeTab>
     });
 
     try {
-      // In a real app, you'd pass offset/limit to fetch next batch
-      // For now, we'll simulate by fetching again
-      
-      final moreShorts = await fetchShorts(offset: _currentOffset, limit: _pageSize);
-      _currentOffset += moreShorts.length;
+      final moreShorts = await fetchShorts(
+        offset: _currentOffset,
+        limit: _pageSize,
+        category: _currentCategoryFilter,
+        randomizeOrder: true,
+      );
 
       if (mounted) {
+        if (moreShorts.isNotEmpty) {
+          // Append to cache
+          _cacheManager.appendShorts(_currentCategory, moreShorts);
+          _currentOffset += moreShorts.length;
+          _hasMoreData = moreShorts.length >= _pageSize;
+        } else {
+          _hasMoreData = false;
+        }
+        
         setState(() {
-          if (moreShorts.isNotEmpty) {
-            // Remove duplicates and add new shorts
-            final existingUrls = _cachedShorts!.map((s) => s.newsUrl).toSet();
-            final newShorts = moreShorts
-                .where((s) => !existingUrls.contains(s.newsUrl))
-                .toList();
-            
-            _cachedShorts!.addAll(newShorts);
-            _currentOffset += newShorts.length;
-            _hasMoreData = newShorts.isNotEmpty && newShorts.length >= _pageSize;
-          } else {
-            _hasMoreData = false;
-          }
           _isLoadingMore = false;
         });
-        debugPrint('✅ Loaded more: ${moreShorts.length} shorts, total: ${_cachedShorts!.length}');
+        
+        debugPrint('✅ Loaded ${moreShorts.length} more shorts');
       }
     } catch (e) {
       if (mounted) {
@@ -147,16 +185,17 @@ class _HomeTabState extends State<HomeTab>
   }
 
   Future<void> _refreshShorts() async {
-    setState(() {
-      _cachedShorts = null; // Clear cache
-      _currentOffset = 0;
-      _hasMoreData = true;
-    });
-    await _loadInitialShorts();
+    // Clear cache for current category
+    _cacheManager.clearCategory(_currentCategory);
+    _currentOffset = 0;
+    _hasMoreData = true;
+    
+    await _loadShortsForCurrentCategory();
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
@@ -165,14 +204,14 @@ class _HomeTabState extends State<HomeTab>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           children: [
-            // Category tabs at the top with Local button
+            // Category tabs with Local button
             Container(
               color: Colors.black,
               child: Stack(
@@ -181,13 +220,11 @@ class _HomeTabState extends State<HomeTab>
                     children: [
                       // Static Local button
                       Padding(
-                        padding: const EdgeInsets.only(
-                            left: 12, top: 12, bottom: 12),
+                        padding: const EdgeInsets.only(left: 12, top: 12, bottom: 12),
                         child: GestureDetector(
                           onTap: widget.onLocalToggle,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                             decoration: BoxDecoration(
                               color: widget.isLocalSelected
                                   ? const Color(0xFF2196F3).withOpacity(0.15)
@@ -215,7 +252,6 @@ class _HomeTabState extends State<HomeTab>
                           ),
                         ),
                       ),
-                      // Small gap
                       const SizedBox(width: 8),
                       // Scrollable tabs
                       Expanded(
@@ -234,13 +270,30 @@ class _HomeTabState extends State<HomeTab>
                             fontSize: 16,
                             fontWeight: FontWeight.normal,
                           ),
-                          labelPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 12),
+                          labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           tabAlignment: TabAlignment.start,
                           padding: EdgeInsets.zero,
-                          tabs: categories
-                              .map((category) => Text(category))
-                              .toList(),
+                          tabs: categories.map((category) {
+                            // Show cache indicator
+                            final hasCached = _cacheManager.hasCachedShorts(category);
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(category),
+                                if (hasCached) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF2196F3),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            );
+                          }).toList(),
                         ),
                       ),
                     ],
@@ -280,8 +333,10 @@ class _HomeTabState extends State<HomeTab>
   }
 
   Widget _buildContent() {
+    final cachedShorts = _cacheManager.getCachedShorts(_currentCategory);
+
     // Initial loading
-    if (_isLoading && _cachedShorts == null) {
+    if (_isLoading && cachedShorts == null) {
       return const Center(
         child: CircularProgressIndicator(
           color: Color(0xFF2196F3),
@@ -290,7 +345,7 @@ class _HomeTabState extends State<HomeTab>
     }
 
     // Error state
-    if (_errorMessage != null && _cachedShorts == null) {
+    if (_errorMessage != null && cachedShorts == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -319,11 +374,10 @@ class _HomeTabState extends State<HomeTab>
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _loadInitialShorts,
+              onPressed: _loadShortsForCurrentCategory,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2196F3),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
               child: const Text('Retry'),
             ),
@@ -333,7 +387,7 @@ class _HomeTabState extends State<HomeTab>
     }
 
     // Empty state
-    if (_cachedShorts == null || _cachedShorts!.isEmpty) {
+    if (cachedShorts == null || cachedShorts.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -361,8 +415,7 @@ class _HomeTabState extends State<HomeTab>
               onPressed: _refreshShorts,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2196F3),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
               child: const Text('Refresh'),
             ),
@@ -371,7 +424,7 @@ class _HomeTabState extends State<HomeTab>
       );
     }
 
-    // Content loaded - show with pull to refresh
+    // Content loaded
     return RefreshIndicator(
       onRefresh: _refreshShorts,
       color: const Color(0xFF2196F3),
@@ -384,10 +437,10 @@ class _HomeTabState extends State<HomeTab>
             _currentPage = index;
           });
         },
-        itemCount: _cachedShorts!.length + (_hasMoreData ? 1 : 0),
+        itemCount: cachedShorts.length + (_hasMoreData ? 1 : 0),
         itemBuilder: (context, index) {
-          // Show loading indicator at the end
-          if (index == _cachedShorts!.length) {
+          // Loading indicator at end
+          if (index == cachedShorts.length) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -413,7 +466,7 @@ class _HomeTabState extends State<HomeTab>
 
           return Transform.translate(
             offset: const Offset(0, -10),
-            child: NewsCard(article: _cachedShorts![index]),
+            child: NewsCard(article: cachedShorts[index]),
           );
         },
       ),
