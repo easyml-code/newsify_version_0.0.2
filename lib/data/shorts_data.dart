@@ -18,6 +18,7 @@ Future<List<NewsArticle>> fetchShorts({
       news_author,
       image_url,
       news_title,
+      news_location,
       news_url,
       provider,
       news_datetime,
@@ -66,6 +67,7 @@ Future<List<NewsArticle>> fetchShorts({
         final publishedDatetime = item['news_datetime']?.toString();
         final newsUrl = item['news_url']?.toString() ?? '';
         final provider = item['provider']?.toString() ?? '';
+        final location = item['news_location']?.toString() ?? '';
 
         // Parse datetime into timeAgo
         String timeAgo = 'Unknown time';
@@ -116,6 +118,7 @@ Future<List<NewsArticle>> fetchShorts({
           newsUrl: newsUrl,
           readMore: newsTitle.length > 30 ? newsTitle.substring(0, 30) : newsTitle,
           source: provider.isEmpty ? 'Unknown' : provider,
+          location: location.isEmpty ? 'Unknown' : location,
         );
       } catch (e) {
         debugPrint('❌ Error parsing item: $e');
@@ -128,6 +131,7 @@ Future<List<NewsArticle>> fetchShorts({
           newsUrl: '',
           readMore: 'Error',
           source: 'Unknown',
+          location: 'Unknown',
         );
       }
     }).toList();
