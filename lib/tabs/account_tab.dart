@@ -264,12 +264,12 @@ class _AccountTabState extends State<AccountTab> {
         : (email.isNotEmpty ? email : (phone.isNotEmpty ? phone : 'Guest'));
 
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[800]!),
+        // border: Border.all(color: Colors.grey[800]!),
       ),
       child: Column(
         children: [
@@ -354,7 +354,7 @@ class _AccountTabState extends State<AccountTab> {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -460,6 +460,12 @@ class _AccountTabState extends State<AccountTab> {
     );
   }
 
+
+// Add these fields to your State class (e.g. _AccountTabState)
+final Set<int> _showDelete = {}; // tracks which item indexes show delete button
+final Duration _autoHideDuration = const Duration(seconds: 2); // auto-hide delete after 3s (change or remove if not wanted)
+
+/// Build bookmarks list
 Widget _buildBookmarksList() {
   return ListView.builder(
     shrinkWrap: true,
@@ -467,131 +473,138 @@ Widget _buildBookmarksList() {
     itemCount: _bookmarks.length,
     itemBuilder: (context, index) {
       final bookmark = _bookmarks[index];
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.grey[900],
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            children: [
-              Row(
-                children: [
-                  // Square Thumbnail with gradient overlay
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[800],
-                    ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (bookmark['image_url'] != null)
-                          Image.network(
-                            bookmark['image_url'],
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(Icons.image, color: Colors.grey, size: 40);
-                            },
-                          )
-                        else
-                          const Icon(Icons.image, color: Colors.grey, size: 40),
-                        
-                        // Translucent gradient overlay
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              colors: [
-                                Colors.black.withOpacity(0.3),
-                                Colors.transparent,
+      final bool showDelete = _showDelete.contains(index);
+
+      return GestureDetector(
+        onLongPress: () {
+          setState(() => _showDelete.add(index));
+          Future.delayed(_autoHideDuration, () {
+            if (mounted) setState(() => _showDelete.remove(index));
+          });
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.25), // iOS liquid style light black
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // TEXT SIDE (now on left)
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        height: 80,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              bookmark['title'] ?? 'Untitled',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Row(
+                              children: [
+                                Icon(Icons.access_time,
+                                    size: 12, color: Colors.grey[300]),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _getTimeAgo(bookmark['bookmarked_at']),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
+                                ),
                               ],
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // IMAGE SIDE (now on right)
+                    Container(
+                      width: 120,
+                      height: 80,
+                      padding: const EdgeInsets.all(6),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: bookmark['image_url'] != null
+                            ? Image.network(
+                                bookmark['image_url'],
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                              )
+                            : const Icon(Icons.image,
+                                color: Colors.grey, size: 40),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // DELETE BUTTON
+                if (showDelete)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () async {
+                        try {
+                          await _authService.removeBookmark(bookmark['news_url']);
+                          _loadUserData();
+                        } catch (_) {}
+                        setState(() => _showDelete.remove(index));
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Bookmark removed'),
+                              backgroundColor: Colors.red,
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(8),
+                          border:
+                              Border.all(color: Colors.redAccent, width: 1.2),
+                        ),
+                        child: const Text(
+                          "Delete",
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Content Section
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Title
-                          Text(
-                            bookmark['title'] ?? 'Untitled',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              height: 1.3,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          
-                          // Meta data
-                          Row(
-                            children: [
-                              Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(
-                                _getTimeAgo(bookmark['bookmarked_at']),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
-              
-              // Delete button overlay
-              Positioned(
-                top: 8,
-                right: 8,
-                child: GestureDetector(
-                  onTap: () async {
-                    await _authService.removeBookmark(bookmark['news_url']);
-                    _loadUserData();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Bookmark removed'),
-                          backgroundColor: Colors.red,
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.delete_outline,
-                      color: Colors.red,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -599,26 +612,28 @@ Widget _buildBookmarksList() {
   );
 }
 
+
+
 // Add this helper method to the _AccountTabState class
-String _getTimeAgo(String? timestamp) {
-  if (timestamp == null) return 'Unknown';
-  
-  try {
-    final bookmarkedDate = DateTime.parse(timestamp);
-    final now = DateTime.now();
-    final difference = now.difference(bookmarkedDate);
+  String _getTimeAgo(String? timestamp) {
+    if (timestamp == null) return 'Unknown';
     
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
+    try {
+      final bookmarkedDate = DateTime.parse(timestamp);
+      final now = DateTime.now();
+      final difference = now.difference(bookmarkedDate);
+      
+      if (difference.inDays > 0) {
+        return '${difference.inDays}d ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours}h ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes}m ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      return 'Unknown';
     }
-  } catch (e) {
-    return 'Unknown';
   }
-}
 }
