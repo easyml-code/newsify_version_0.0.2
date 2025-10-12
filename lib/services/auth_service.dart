@@ -50,36 +50,131 @@ class AuthService {
   }
 
   // Sign up with Email & Password
-  Future<void> signUpWithEmail(String email, String password, String fullName) async {
+Future<void> signUpWithEmail(String email, String password, String fullName) async {
+  try {
     final response = await _supabase.auth.signUp(
       email: email,
       password: password,
-      data: {
-        'full_name': fullName,
-      },
+      data: {'full_name': fullName},
+      emailRedirectTo: 'io.vikram.newsify://login-callback/',
     );
 
     if (response.user == null) {
-      throw Exception("Sign up failed");
+      throw Exception("Sign up failed. Please try again.");
     }
-    // Create user profile row right away
+    
+    // Try to create profile (may fail due to RLS until email confirmed)
     await _createUserProfile(response.user!);
-  }
-
-  // Sign in with Email & Password
-  Future<AuthResponse> signInWithEmailPassword(String email, String password) async {
-    try {
-      final response = await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      debugPrint('✅ Email sign in successful: ${response.user?.email}');
-      return response;
-    } catch (e) {
-      debugPrint('❌ Email sign in error: $e');
-      rethrow;
+    
+    debugPrint('✅ Sign up successful, verification email sent');
+  } on AuthException catch (e) {
+    debugPrint('❌ Email sign up error: $e');
+    
+    if (e.message.contains('already registered')) {
+      throw Exception('This email is already registered');
+    } else if (e.message.contains('invalid email')) {
+      throw Exception('Please enter a valid email address');
+    } else {
+      throw Exception('Sign up failed. Please try again');
     }
+  } catch (e) {
+    debugPrint('❌ Email sign up error: $e');
+    rethrow;
   }
+}
+
+// Sign in with Email & Password
+Future<AuthResponse> signInWithEmailPassword(String email, String password) async {
+  try {
+    final response = await _supabase.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+    
+    // Check if email is confirmed
+    if (response.user?.emailConfirmedAt == null) {
+      await _supabase.auth.signOut();
+      throw Exception('Please verify your email before signing in');
+    }
+    
+    debugPrint('✅ Email sign in successful: ${response.user?.email}');
+    return response;
+  } on AuthException catch (e) {
+    debugPrint('❌ Email sign in error: $e');
+    
+    // Convert technical errors to user-friendly messages
+    if (e.message.contains('Invalid login credentials')) {
+      throw Exception('Invalid email or password');
+    } else if (e.message.contains('Email not confirmed')) {
+      throw Exception('Please verify your email before signing in');
+    } else if (e.message.contains('User not found')) {
+      throw Exception('No account found with this email');
+    } else {
+      throw Exception('Sign in failed. Please try again');
+    }
+  } catch (e) {
+    debugPrint('❌ Email sign in error: $e');
+    rethrow;
+  }
+}
+
+// Create user profile in database
+Future<void> _createUserProfile(User user) async {
+  try {
+    final existingProfile = await _supabase
+        .from('user_profiles')
+        .select()
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (existingProfile == null) {
+      await _supabase.from('user_profiles').insert({
+        'id': user.id,
+        'email': user.email,
+        'phone': user.phone,
+        'full_name': user.userMetadata?['full_name'],
+        'avatar_url': user.userMetadata?['avatar_url'],
+      });
+      debugPrint('✅ User profile created');
+    }
+  } on PostgrestException catch (e) {
+    // Ignore RLS errors silently - profile will be created on next sign in
+    if (e.code == '42501') {
+      debugPrint('⚠️ Profile creation deferred (user not confirmed yet)');
+    } else {
+      debugPrint('❌ Error creating user profile: ${e.message}');
+    }
+  } catch (e) {
+    debugPrint('❌ Error creating user profile: $e');
+  }
+}
+
+// Verify Phone OTP
+Future<AuthResponse> verifyPhoneOTP(String phone, String otp) async {
+  try {
+    final response = await _supabase.auth.verifyOTP(
+      phone: phone,
+      token: otp,
+      type: OtpType.sms,
+    );
+    debugPrint('✅ Phone verification successful');
+    if (response.user != null) {
+      await _createUserProfile(response.user!);
+    }
+    return response;
+  } on AuthException catch (e) {
+    debugPrint('❌ Phone verification error: $e');
+    
+    if (e.message.contains('Invalid') || e.message.contains('expired')) {
+      throw Exception('Invalid or expired OTP. Please try again');
+    } else {
+      throw Exception('Verification failed. Please try again');
+    }
+  } catch (e) {
+    debugPrint('❌ Phone verification error: $e');
+    rethrow;
+  }
+}
 
   // Sign in with Phone
   Future<void> signInWithPhone(String phone) async {
@@ -90,25 +185,6 @@ class AuthService {
       debugPrint('✅ OTP sent to: $phone');
     } catch (e) {
       debugPrint('❌ Phone sign in error: $e');
-      rethrow;
-    }
-  }
-
-  // Verify Phone OTP
-  Future<AuthResponse> verifyPhoneOTP(String phone, String otp) async {
-    try {
-      final response = await _supabase.auth.verifyOTP(
-        phone: phone,
-        token: otp,
-        type: OtpType.sms,
-      );
-      debugPrint('✅ Phone verification successful');
-      if (response.user != null) {
-        await _createUserProfile(response.user!);
-      }
-      return response;
-    } catch (e) {
-      debugPrint('❌ Phone verification error: $e');
       rethrow;
     }
   }
@@ -131,50 +207,7 @@ class AuthService {
       rethrow;
     }
   }
-
-  // Create user profile in database
-  Future<void> _createUserProfile(User user) async {
-    try {
-      final existingProfile = await _supabase
-          .from('user_profiles')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (existingProfile == null) {
-        await _supabase.from('user_profiles').insert({
-          'id': user.id,
-          'email': user.email,
-          'phone': user.phone,
-          'full_name': user.userMetadata?['full_name'],
-          'avatar_url': user.userMetadata?['avatar_url'],
-        });
-        debugPrint('✅ User profile created');
-      }
-    } catch (e) {
-      debugPrint('❌ Error creating user profile: $e');
-    }
-  }
-
-//   Future<void> _createUserProfile(User user) async {
-//   try {
-//     // Upsert ensures single DB operation
-//     await _supabase.from('user_profiles').upsert({
-//       'id': user.id,
-//       'email': user.email,
-//       'phone': user.phone,
-//       'full_name': user.userMetadata?['full_name'],
-//       'avatar_url': user.userMetadata?['avatar_url'],
-//       'created_at': DateTime.now().toIso8601String(),
-//       'updated_at': DateTime.now().toIso8601String(),
-//     }, onConflict: 'id'); // just a single string
-
-//     debugPrint('✅ User profile created/updated: ${user.id}');
-//   } catch (e) {
-//     debugPrint('❌ Error creating/updating user profile: $e');
-//   }
-// }
-
+  
   // Get user profile
   Future<Map<String, dynamic>?> getUserProfile() async {
   try {

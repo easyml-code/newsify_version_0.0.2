@@ -1,11 +1,106 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/news_article.dart';
+import '../services/auth_service.dart';
+import '../screens/auth/auth_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 
-class NewsCard extends StatelessWidget {
+class NewsCard extends StatefulWidget {
   final NewsArticle article;
 
   const NewsCard({super.key, required this.article});
+
+  @override
+  State<NewsCard> createState() => _NewsCardState();
+}
+
+class _NewsCardState extends State<NewsCard> {
+  final AuthService _authService = AuthService();
+  bool _isBookmarked = false;
+  bool _isCheckingBookmark = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBookmarkStatus();
+  }
+
+  Future<void> _checkBookmarkStatus() async {
+    if (_authService.isSignedIn) {
+      final isBookmarked = await _authService.isBookmarked(widget.article.newsUrl);
+      if (mounted) {
+        setState(() {
+          _isBookmarked = isBookmarked;
+          _isCheckingBookmark = false;
+        });
+      }
+    } else {
+      setState(() => _isCheckingBookmark = false);
+    }
+  }
+
+  Future<void> _handleBookmark() async {
+    if (!_authService.isSignedIn) {
+      // Show login prompt
+      if (mounted) {
+        AuthScreen.showAuthBottomSheet(context);
+      }
+      return;
+    }
+
+    try {
+      if (_isBookmarked) {
+        await _authService.removeBookmark(widget.article.newsUrl);
+        if (mounted) {
+          setState(() => _isBookmarked = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Removed from bookmarks'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      } else {
+        await _authService.addBookmark(
+          widget.article.newsUrl,
+          widget.article.title,
+          widget.article.imageUrl,
+        );
+        if (mounted) {
+          setState(() => _isBookmarked = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Added to bookmarks'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleShare() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ShareBottomSheet(
+        title: widget.article.title,
+        url: widget.article.newsUrl,
+      ),
+    );
+  }
 
   Future<void> _launchURL(String url) async {
     try {
@@ -31,21 +126,20 @@ class NewsCard extends StatelessWidget {
         children: [
           Column(
             children: [
-              // 🖼 Image Section - FIXED HEIGHT
+              // 🖼 Image Section
               Container(
                 height: MediaQuery.of(context).size.height * 0.35,
                 width: double.infinity,
                 padding: const EdgeInsets.only(top: 12),
                 child: Stack(
                   children: [
-                    // Image with rounded corners
                     ClipRRect(
                       borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),   
-                        topRight: Radius.circular(16), 
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
                       child: Image.network(
-                        article.imageUrl,
+                        widget.article.imageUrl,
                         width: double.infinity,
                         height: double.infinity,
                         fit: BoxFit.cover,
@@ -59,32 +153,27 @@ class NewsCard extends StatelessWidget {
                         },
                       ),
                     ),
-
-                    // More options button at top right
                     Positioned(
                       top: 4,
                       right: 4,
                       child: IconButton(
                         icon: const Icon(Icons.more_horiz, color: Colors.white, size: 26),
-                        onPressed: () {
-                          // Show options menu
-                        },
+                        onPressed: () {},
                       ),
                     ),
                   ],
                 ),
               ),
 
-              // 📰 Scrollable Content Section
+              // 📰 Content Section
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(18, 25, 18, 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Title
                       Text(
-                        article.title,
+                        widget.article.title,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
@@ -93,30 +182,25 @@ class NewsCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // Content
                       Text(
-                        article.content,
+                        widget.article.content,
                         style: TextStyle(
                           color: Colors.grey[300],
                           fontSize: 14,
                           height: 1.5,
                         ),
                       ),
-
                       const SizedBox(height: 12),
-
-                      // Meta info
                       Text(
-                        article.author != 'Unknown'
-                        ? '${article.time} | ${article.author} | ${article.source}'
-                        : '${article.time} | ${article.source}',
+                        widget.article.author != 'Unknown'
+                            ? '${widget.article.time} | ${widget.article.author} | ${widget.article.source}'
+                            : '${widget.article.time} | ${widget.article.source}',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 11,
                         ),
                       ),
-                      const SizedBox(height: 90), // Space for "Tap to know more"
+                      const SizedBox(height: 90),
                     ],
                   ),
                 ),
@@ -124,7 +208,7 @@ class NewsCard extends StatelessWidget {
             ],
           ),
 
-          // Bookmark and Share buttons - POSITIONED AT IMAGE/TEXT BORDER
+          // Bookmark and Share buttons
           Positioned(
             top: MediaQuery.of(context).size.height * 0.35 - 16,
             right: 4,
@@ -138,20 +222,27 @@ class NewsCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   GestureDetector(
-                    onTap: () {
-                      // Handle bookmark
-                      debugPrint('Bookmark tapped');
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                      child: Icon(Icons.bookmark_border, color: Colors.white, size: 22),
+                    onTap: _handleBookmark,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                      child: _isCheckingBookmark
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                              color: _isBookmarked ? const Color(0xFF2196F3) : Colors.white,
+                              size: 22,
+                            ),
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      // Handle share
-                      debugPrint('Share tapped');
-                    },
+                    onTap: _handleShare,
                     child: const Padding(
                       padding: EdgeInsets.all(6),
                       child: Icon(Icons.share, color: Colors.white, size: 22),
@@ -161,65 +252,20 @@ class NewsCard extends StatelessWidget {
               ),
             ),
           ),
-                              // Badge at top left
-                    // Positioned(
-                    //   top: MediaQuery.of(context).size.height * 0.35 - 18,
-                    //   left: 20,
-                    //   child: Container(
-                    //     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                    //     decoration: BoxDecoration(
-                    //       // color: Colors.black.withOpacity(0.7),
-                    //       color: Colors.grey,
-                    //       borderRadius: BorderRadius.circular(60),
-                    //     ),
-                    //     child: Row(
-                    //       mainAxisSize: MainAxisSize.min,
-                    //       children: [
-                    //         Container(
-                    //           width: 14,
-                    //           height: 14,
-                    //           decoration: const BoxDecoration(
-                    //             color: Colors.white,
-                    //             shape: BoxShape.circle,
-                    //           ),
-                    //           child: const Center(
-                    //             child: Icon(
-                    //               Icons.article,
-                    //               size: 8,
-                    //               color: Colors.black,
-                    //             ),
-                    //           ),
-                    //         ),
-                    //         const SizedBox(width: 6),
-                    //         const Text(
-                    //           'newsify',
-                    //           style: TextStyle(
-                    //             color: Colors.white,
-                    //             fontSize: 12,
-                    //             fontWeight: FontWeight.bold,
-                    //           ),
-                    //         ),
-                    //       ],
-                    //     ),
-                    //   ),
-                    // ),
 
-          // "Tap to know more" button - FIXED AT BOTTOM
+          // "Tap to know more" button
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: GestureDetector(
-              onTap: () {
-                _launchURL(article.newsUrl);
-              },
+              onTap: () => _launchURL(widget.article.newsUrl),
               child: Container(
-                margin: const EdgeInsets.only(bottom: 0),
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: BoxDecoration(
                   color: Colors.grey[900]?.withOpacity(0.6),
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(16),   
+                    bottomLeft: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
                 ),
@@ -235,7 +281,7 @@ class NewsCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      article.readMore,
+                      widget.article.readMore,
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 12,
@@ -247,6 +293,125 @@ class NewsCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Share Bottom Sheet
+class _ShareBottomSheet extends StatelessWidget {
+  final String title;
+  final String url;
+
+  const _ShareBottomSheet({
+    required this.title,
+    required this.url,
+  });
+
+  Future<void> _copyLink(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Link copied to clipboard'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _shareViaApps() async {
+    await Share.share(
+      '$title\n\nRead more: $url',
+      subject: title,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[700],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Share via Apps
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2196F3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.share, color: Colors.white, size: 24),
+              ),
+              title: const Text(
+                'Share via...',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: _shareViaApps,
+            ),
+
+            // Copy Link
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.link, color: Colors.white, size: 24),
+              ),
+              title: const Text(
+                'Copy Link',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () => _copyLink(context),
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }

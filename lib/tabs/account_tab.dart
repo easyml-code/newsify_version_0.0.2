@@ -460,79 +460,165 @@ class _AccountTabState extends State<AccountTab> {
     );
   }
 
-  Widget _buildBookmarksList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _bookmarks.length,
-      itemBuilder: (context, index) {
-        final bookmark = _bookmarks[index];
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
+Widget _buildBookmarksList() {
+  return ListView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    itemCount: _bookmarks.length,
+    itemBuilder: (context, index) {
+      final bookmark = _bookmarks[index];
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
             children: [
-              // Thumbnail
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: bookmark['image_url'] != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          bookmark['image_url'],
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.image, color: Colors.grey, size: 30);
-                          },
+              Row(
+                children: [
+                  // Square Thumbnail with gradient overlay
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[800],
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (bookmark['image_url'] != null)
+                          Image.network(
+                            bookmark['image_url'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(Icons.image, color: Colors.grey, size: 40);
+                            },
+                          )
+                        else
+                          const Icon(Icons.image, color: Colors.grey, size: 40),
+                        
+                        // Translucent gradient overlay
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [
+                                Colors.black.withOpacity(0.3),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
                         ),
-                      )
-                    : const Icon(Icons.image, color: Colors.grey, size: 30),
-              ),
-              const SizedBox(width: 12),
-              
-              // Title
-              Expanded(
-                child: Text(
-                  bookmark['title'] ?? 'Untitled',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                      ],
+                    ),
                   ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  
+                  // Content Section
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Title
+                          Text(
+                            bookmark['title'] ?? 'Untitled',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          
+                          // Meta data
+                          Row(
+                            children: [
+                              Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
+                              const SizedBox(width: 4),
+                              Text(
+                                _getTimeAgo(bookmark['bookmarked_at']),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
               
-              // Delete button
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                onPressed: () async {
-                  await _authService.removeBookmark(bookmark['news_url']);
-                  _loadUserData();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Bookmark removed'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                },
+              // Delete button overlay
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () async {
+                    await _authService.removeBookmark(bookmark['news_url']);
+                    _loadUserData();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Bookmark removed'),
+                          backgroundColor: Colors.red,
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                      size: 18,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
+}
+
+// Add this helper method to the _AccountTabState class
+String _getTimeAgo(String? timestamp) {
+  if (timestamp == null) return 'Unknown';
+  
+  try {
+    final bookmarkedDate = DateTime.parse(timestamp);
+    final now = DateTime.now();
+    final difference = now.difference(bookmarkedDate);
+    
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  } catch (e) {
+    return 'Unknown';
   }
+}
 }

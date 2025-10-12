@@ -69,8 +69,9 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Account created! Please verify your email."),
-            backgroundColor: Colors.green,
+            content: Text("Please verify your email to continue. Check your inbox."),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
           ),
         );
       }
