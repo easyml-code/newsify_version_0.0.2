@@ -9,7 +9,6 @@ class HomeTabController {
 
   late TabController tabController;
   
-  // Separate PageController for each category
   final Map<String, PageController> _pageControllers = {};
   final Map<String, int> _lastViewedPage = {};
   
@@ -22,7 +21,10 @@ class HomeTabController {
   final int _pageSize = 20;
   final Map<String, bool> _categoryHasMoreData = {};
 
-  // Category mapping
+  // Location filter
+  bool _isLocalFilter = false;
+  String? _userDistrict;
+
   final Map<String, String> _categoryMapping = {
     'Feed': '',
     'Finance': 'Finance',
@@ -47,91 +49,118 @@ class HomeTabController {
   String get currentCategory => categories[tabController.index];
   String? get currentCategoryFilter => _categoryMapping[currentCategory];
   
-  // Get or create PageController for current category
+  // Generate cache key based on category and location filter
+  String _getCacheKey(String category) {
+    return _isLocalFilter && _userDistrict != null
+        ? '${category}_local_$_userDistrict'
+        : category;
+  }
+
   PageController get currentPageController {
-    if (!_pageControllers.containsKey(currentCategory)) {
-      // Always initialize with page 0, we'll jump to the correct page later
-      _pageControllers[currentCategory] = PageController(initialPage: 0);
-      _pageControllers[currentCategory]!.addListener(() => _onPageScroll(currentCategory));
+    final cacheKey = _getCacheKey(currentCategory);
+    if (!_pageControllers.containsKey(cacheKey)) {
+      _pageControllers[cacheKey] = PageController(initialPage: 0);
+      _pageControllers[cacheKey]!.addListener(() => _onPageScroll(cacheKey));
     }
-    return _pageControllers[currentCategory]!;
+    return _pageControllers[cacheKey]!;
   }
 
   void initialize() {
     tabController = TabController(length: categories.length, vsync: vsync);
     
-    // Initialize tracking for all categories
     for (var category in categories) {
       _categoryOffsets[category] = 0;
       _categoryHasMoreData[category] = true;
       _lastViewedPage[category] = 0;
     }
     
-    // Listen to tab changes
     tabController.addListener(_onTabChanged);
-    
-    // Load initial data for Feed
     loadShortsForCurrentCategory();
+  }
+
+  void updateLocationFilter(bool isLocal, String? district) {
+    final oldLocalState = _isLocalFilter;
+    final oldDistrict = _userDistrict;
+
+    _isLocalFilter = isLocal;
+    _userDistrict = district;
+
+    // Only reload if filter actually changed
+    if (oldLocalState != isLocal || oldDistrict != district) {
+      debugPrint('🔄 Location filter changed. Local: $isLocal, District: $district');
+      
+      // Reset all categories
+      for (var category in categories) {
+        _categoryOffsets[category] = 0;
+        _categoryHasMoreData[category] = true;
+        _lastViewedPage[category] = 0;
+      }
+      
+      // Reload current category
+      loadShortsForCurrentCategory();
+    }
   }
 
   void _onTabChanged() {
     if (!tabController.indexIsChanging) {
-      debugPrint('📑 Tab changed to: $currentCategory (last page: ${_lastViewedPage[currentCategory]})');
+      final cacheKey = _getCacheKey(currentCategory);
+      debugPrint('📑 Tab changed to: $currentCategory (cache: $cacheKey, last page: ${_lastViewedPage[cacheKey]})');
       loadShortsForCurrentCategory();
       
-      // Force rebuild to use correct PageController
       onUpdate();
       
-      // Jump to last viewed page after the frame is built
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pageControllers.containsKey(currentCategory)) {
-          final lastPage = _lastViewedPage[currentCategory] ?? 0;
-          final controller = _pageControllers[currentCategory]!;
+        if (_pageControllers.containsKey(cacheKey)) {
+          final lastPage = _lastViewedPage[cacheKey] ?? 0;
+          final controller = _pageControllers[cacheKey]!;
           
           if (controller.hasClients && controller.page?.round() != lastPage) {
             controller.jumpToPage(lastPage);
-            debugPrint('🔄 Jumped to page $lastPage for $currentCategory');
+            debugPrint('🔄 Jumped to page $lastPage for $cacheKey');
           }
         }
       });
     }
   }
 
-  void _onPageScroll(String category) {
-    final controller = _pageControllers[category];
+  void _onPageScroll(String cacheKey) {
+    final controller = _pageControllers[cacheKey];
     if (controller == null || !controller.hasClients) return;
     
-    final cachedShorts = _cacheManager.getCachedShorts(category);
+    final cachedShorts = _cacheManager.getCachedShorts(cacheKey);
     if (cachedShorts == null) return;
 
-    // Update last viewed page for this category
     final currentPage = controller.page?.round() ?? 0;
-    _lastViewedPage[category] = currentPage;
+    _lastViewedPage[cacheKey] = currentPage;
 
     final maxScroll = controller.position.maxScrollExtent;
     final currentScroll = controller.position.pixels;
     final delta = maxScroll - currentScroll;
 
-    // Load more when user is 3 items away from the end
-    // Note: We need context for MediaQuery, so we'll use a fixed height estimate
-    if (delta <= 3 * 800 && // Estimated screen height
+    if (delta <= 3 * 800 &&
         !_isLoadingMore &&
-        (_categoryHasMoreData[category] ?? true) &&
-        category == currentCategory) {
+        (_categoryHasMoreData[currentCategory] ?? true) &&
+        cacheKey == _getCacheKey(currentCategory)) {
       loadMoreShorts();
     }
   }
 
   Future<void> loadShortsForCurrentCategory() async {
-    // Check if we have cached data for this category
-    if (_cacheManager.hasCachedShorts(currentCategory)) {
-      debugPrint('✅ Using cached data for $currentCategory (${_cacheManager.getCachedShorts(currentCategory)!.length} items)');
-      errorMessage = null;
-      onUpdate();
-      return;
+    final cacheKey = _getCacheKey(currentCategory);
+    
+    // Check cache staleness
+    if (_cacheManager.hasCachedShorts(cacheKey)) {
+      if (_cacheManager.isCacheStale(cacheKey, const Duration(minutes: 5))) {
+        debugPrint('⚠️ Cache is stale for $cacheKey, refreshing...');
+        _cacheManager.clearCategory(cacheKey);
+      } else {
+        debugPrint('✅ Using cached data for $cacheKey (${_cacheManager.getCachedShorts(cacheKey)!.length} items)');
+        errorMessage = null;
+        onUpdate();
+        return;
+      }
     }
 
-    // No cache, fetch from database
     isLoading = true;
     errorMessage = null;
     _categoryOffsets[currentCategory] = 0;
@@ -144,17 +173,17 @@ class HomeTabController {
         offset: 0,
         category: currentCategoryFilter,
         randomizeOrder: true,
+        locationFilter: _isLocalFilter ? _userDistrict : null,
       );
 
-      // Cache the fetched shorts
-      _cacheManager.cacheShorts(currentCategory, shorts);
+      _cacheManager.cacheShorts(cacheKey, shorts);
       _categoryOffsets[currentCategory] = shorts.length;
       
       isLoading = false;
       _categoryHasMoreData[currentCategory] = shorts.length >= _pageSize;
       onUpdate();
       
-      debugPrint('✅ Loaded ${shorts.length} shorts for $currentCategory');
+      debugPrint('✅ Loaded ${shorts.length} shorts for $cacheKey');
     } catch (e) {
       isLoading = false;
       errorMessage = 'Error loading news: $e';
@@ -166,6 +195,7 @@ class HomeTabController {
   Future<void> loadMoreShorts() async {
     if (_isLoadingMore || !(_categoryHasMoreData[currentCategory] ?? true)) return;
 
+    final cacheKey = _getCacheKey(currentCategory);
     _isLoadingMore = true;
     onUpdate();
 
@@ -177,11 +207,11 @@ class HomeTabController {
         limit: _pageSize,
         category: currentCategoryFilter,
         randomizeOrder: true,
+        locationFilter: _isLocalFilter ? _userDistrict : null,
       );
 
       if (moreShorts.isNotEmpty) {
-        // Append to cache
-        _cacheManager.appendShorts(currentCategory, moreShorts);
+        _cacheManager.appendShorts(cacheKey, moreShorts);
         _categoryOffsets[currentCategory] = currentOffset + moreShorts.length;
         _categoryHasMoreData[currentCategory] = moreShorts.length >= _pageSize;
       } else {
@@ -191,7 +221,7 @@ class HomeTabController {
       _isLoadingMore = false;
       onUpdate();
       
-      debugPrint('✅ Loaded ${moreShorts.length} more shorts for $currentCategory');
+      debugPrint('✅ Loaded ${moreShorts.length} more shorts for $cacheKey');
     } catch (e) {
       _isLoadingMore = false;
       onUpdate();
@@ -200,28 +230,28 @@ class HomeTabController {
   }
 
   Future<void> refreshShorts() async {
-    // Clear cache for current category and reset scroll position
-    _cacheManager.clearCategory(currentCategory);
+    final cacheKey = _getCacheKey(currentCategory);
+    _cacheManager.clearCategory(cacheKey);
     _categoryOffsets[currentCategory] = 0;
     _categoryHasMoreData[currentCategory] = true;
-    _lastViewedPage[currentCategory] = 0;
+    _lastViewedPage[cacheKey] = 0;
     
-    // Dispose old PageController and create new one
-    if (_pageControllers.containsKey(currentCategory)) {
-      _pageControllers[currentCategory]?.dispose();
-      _pageControllers.remove(currentCategory);
+    if (_pageControllers.containsKey(cacheKey)) {
+      _pageControllers[cacheKey]?.dispose();
+      _pageControllers.remove(cacheKey);
     }
     
     await loadShortsForCurrentCategory();
   }
 
-  // Helper methods for UI
   List<NewsArticle>? getCurrentCachedShorts() {
-    return _cacheManager.getCachedShorts(currentCategory);
+    final cacheKey = _getCacheKey(currentCategory);
+    return _cacheManager.getCachedShorts(cacheKey);
   }
 
   bool hasCachedShorts(String category) {
-    return _cacheManager.hasCachedShorts(category);
+    final cacheKey = _getCacheKey(category);
+    return _cacheManager.hasCachedShorts(cacheKey);
   }
 
   bool categoryHasMoreData() {
@@ -232,7 +262,6 @@ class HomeTabController {
     tabController.removeListener(_onTabChanged);
     tabController.dispose();
     
-    // Dispose all PageControllers
     for (var controller in _pageControllers.values) {
       controller.dispose();
     }

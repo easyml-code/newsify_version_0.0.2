@@ -3,12 +3,13 @@ import 'dart:math';
 import '../models/news_article.dart';
 import '../config/config.dart';
 
-/// Fetch shorts with optional category filter and random ordering
+/// Fetch shorts with optional category filter, location filter, and random ordering
 Future<List<NewsArticle>> fetchShorts({
   int limit = 20,
   int offset = 0,
   String? category,
   bool randomizeOrder = true,
+  String? locationFilter,
 }) async {
   try {
     final supabase = AppConfig.supabase!;
@@ -35,15 +36,21 @@ Future<List<NewsArticle>> fetchShorts({
       debugPrint('🔍 Filtering by category: $category');
     }
 
+    // Add location filter if specified
+    if (locationFilter != null && locationFilter.isNotEmpty) {
+      query = query.ilike('news_location', '%$locationFilter%');
+      debugPrint('📍 Filtering by location: $locationFilter');
+    }
+
     // Fetch slightly more items than needed for randomization
     final fetchLimit = randomizeOrder ? limit + 10 : limit;
     
-    // Apply ordering and range - do this in one chain without reassigning
+    // Apply ordering and range
     final response = await query
         .order('news_datetime', ascending: false)
         .range(offset, offset + fetchLimit - 1);
 
-    debugPrint('✅ Supabase response: ${response.length} items (offset: $offset, limit: $limit, category: ${category ?? "all"})');
+    debugPrint('✅ Supabase response: ${response.length} items (offset: $offset, limit: $limit, category: ${category ?? "all"}, location: ${locationFilter ?? "all"})');
 
     var data = response as List<dynamic>;
 
@@ -143,7 +150,6 @@ Future<List<NewsArticle>> fetchShorts({
 }
 
 /// Apply light randomization to keep content fresh
-/// Keeps the most recent news at top but slightly shuffles the order
 List<dynamic> _applyLightRandomization(List<dynamic> data, int limit) {
   final random = Random();
   final result = <dynamic>[];
@@ -156,7 +162,6 @@ List<dynamic> _applyLightRandomization(List<dynamic> data, int limit) {
   final remainingData = data.skip(3).toList();
   
   while (result.length < limit && remainingData.isNotEmpty) {
-    // Pick from top 5 items randomly (not fully random, weighted towards recent)
     final pickFrom = min(5, remainingData.length);
     final randomIndex = random.nextInt(pickFrom);
     

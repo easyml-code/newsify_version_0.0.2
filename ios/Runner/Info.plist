@@ -69,6 +69,9 @@
   <key>UISceneConfigurations</key>
   <dict/>
 </dict>
-
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>We need your location to show local news</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>We need your location to show local news</string>
 </dict>
 </plist>

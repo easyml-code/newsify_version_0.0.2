@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../tabs/home_tab.dart';
 import '../tabs/insights_tab.dart';
 import '../tabs/account_tab.dart';
+import '../services/location_service.dart';
+import '../widgets/location_bottom_sheet.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -13,12 +15,71 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;
   bool isLocalSelected = false;
+  String? userDistrict;
+  bool _isLoadingLocation = false;
 
-  void toggleLocalSelection() {
-    setState(() {
-      isLocalSelected = !isLocalSelected;
-    });
-    debugPrint('Local button clicked - Selected: $isLocalSelected');
+  final LocationService _locationService = LocationService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCachedLocation();
+  }
+
+  Future<void> _loadCachedLocation() async {
+    final location = await _locationService.loadCachedLocation();
+    if (location != null) {
+      setState(() {
+        userDistrict = location.district;
+      });
+    }
+  }
+
+  Future<void> toggleLocalSelection() async {
+    if (!isLocalSelected) {
+      // Enabling local - get location
+      setState(() => _isLoadingLocation = true);
+
+      final location = await _locationService.requestAndGetLocation();
+
+      setState(() => _isLoadingLocation = false);
+
+      if (location != null && mounted) {
+        // Show bottom sheet with location details
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (context) => LocationBottomSheet(
+            location: location,
+            onConfirm: (updatedLocation) {
+              setState(() {
+                isLocalSelected = true;
+                userDistrict = updatedLocation.district;
+              });
+
+              debugPrint('✅ Local enabled for: ${updatedLocation.district}');
+            },
+
+          ),
+        );
+      } else if (mounted) {
+        // Show error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to get location. Please enable location services.'),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      // Disabling local
+      setState(() {
+        isLocalSelected = false;
+      });
+      debugPrint('❌ Local disabled');
+    }
   }
 
   @override
@@ -28,6 +89,8 @@ class _MainScreenState extends State<MainScreen> {
       HomeTab(
         isLocalSelected: isLocalSelected,
         onLocalToggle: toggleLocalSelection,
+        userDistrict: userDistrict,
+        isLoadingLocation: _isLoadingLocation,
       ),
       const AccountTab(),
     ];
@@ -40,8 +103,7 @@ class _MainScreenState extends State<MainScreen> {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding:
-                const EdgeInsets.only(left: 40, right: 40, top: 4, bottom: 4),
+            padding: const EdgeInsets.only(left: 40, right: 40, top: 4, bottom: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

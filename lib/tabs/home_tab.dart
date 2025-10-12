@@ -6,11 +6,15 @@ import 'home_tab_controller.dart';
 class HomeTab extends StatefulWidget {
   final bool isLocalSelected;
   final VoidCallback onLocalToggle;
+  final String? userDistrict;
+  final bool isLoadingLocation;
 
   const HomeTab({
     super.key,
     required this.isLocalSelected,
     required this.onLocalToggle,
+    this.userDistrict,
+    this.isLoadingLocation = false,
   });
 
   @override
@@ -38,6 +42,19 @@ class _HomeTabState extends State<HomeTab>
   }
 
   @override
+  void didUpdateWidget(HomeTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload data when local filter changes
+    if (oldWidget.isLocalSelected != widget.isLocalSelected ||
+        oldWidget.userDistrict != widget.userDistrict) {
+      _controller?.updateLocationFilter(
+        widget.isLocalSelected,
+        widget.userDistrict,
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _controller?.dispose();
     super.dispose();
@@ -47,7 +64,6 @@ class _HomeTabState extends State<HomeTab>
   Widget build(BuildContext context) {
     super.build(context);
     
-    // Safety check - return loading if controller not ready
     if (_controller == null) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -82,7 +98,7 @@ class _HomeTabState extends State<HomeTab>
           Row(
             children: [
               _buildLocalButton(),
-              const SizedBox(width: 8),
+              const SizedBox(width: 16),
               _buildCategoryTabs(),
             ],
           ),
@@ -94,9 +110,9 @@ class _HomeTabState extends State<HomeTab>
 
   Widget _buildLocalButton() {
     return Padding(
-      padding: const EdgeInsets.only(left: 12, top: 12, bottom: 12),
+      padding: const EdgeInsets.only(left: 2, top: 12, bottom: 12),
       child: GestureDetector(
-        onTap: widget.onLocalToggle,
+        onTap: widget.isLoadingLocation ? null : widget.onLocalToggle,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
           decoration: BoxDecoration(
@@ -111,18 +127,33 @@ class _HomeTabState extends State<HomeTab>
               width: 1,
             ),
           ),
-          child: Text(
-            'Local',
-            style: TextStyle(
-              color: widget.isLocalSelected
-                  ? const Color(0xFF2196F3)
-                  : Colors.grey[400],
-              fontSize: 14,
-              fontWeight: widget.isLocalSelected
-                  ? FontWeight.w600
-                  : FontWeight.w500,
-            ),
-          ),
+          child: widget.isLoadingLocation
+              ? const SizedBox(
+                  width: 45,
+                  height: 20,
+                  child: Center(
+                    child: SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF2196F3),
+                      ),
+                    ),
+                  ),
+                )
+              : Text(
+                  'Local',
+                  style: TextStyle(
+                    color: widget.isLocalSelected
+                        ? const Color(0xFF2196F3)
+                        : Colors.grey[400],
+                    fontSize: 14,
+                    fontWeight: widget.isLocalSelected
+                        ? FontWeight.w600
+                        : FontWeight.w500,
+                  ),
+                ),
         ),
       ),
     );
@@ -145,7 +176,7 @@ class _HomeTabState extends State<HomeTab>
           fontSize: 16,
           fontWeight: FontWeight.normal,
         ),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         tabAlignment: TabAlignment.start,
         padding: EdgeInsets.zero,
         tabs: _controller!.categories.map((category) {
@@ -174,7 +205,7 @@ class _HomeTabState extends State<HomeTab>
 
   Widget _buildGradientFade() {
     return Positioned(
-      left: 80,
+      left: 70,
       top: 0,
       bottom: 0,
       child: IgnorePointer(
@@ -198,7 +229,6 @@ class _HomeTabState extends State<HomeTab>
   Widget _buildContent() {
     final cachedShorts = _controller!.getCurrentCachedShorts();
 
-    // Initial loading
     if (_controller!.isLoading && cachedShorts == null) {
       return const Center(
         child: CircularProgressIndicator(
@@ -207,17 +237,14 @@ class _HomeTabState extends State<HomeTab>
       );
     }
 
-    // Error state
     if (_controller!.errorMessage != null && cachedShorts == null) {
       return _buildErrorState();
     }
 
-    // Empty state
     if (cachedShorts == null || cachedShorts.isEmpty) {
       return _buildEmptyState();
     }
 
-    // Content loaded
     return _buildNewsCards(cachedShorts);
   }
 
@@ -270,7 +297,9 @@ class _HomeTabState extends State<HomeTab>
           Icon(Icons.article_outlined, size: 60, color: Colors.grey[600]),
           const SizedBox(height: 16),
           Text(
-            'No news available',
+            widget.isLocalSelected
+                ? 'No local news available'
+                : 'No news available',
             style: TextStyle(
               color: Colors.grey[400],
               fontSize: 18,
@@ -279,7 +308,9 @@ class _HomeTabState extends State<HomeTab>
           ),
           const SizedBox(height: 8),
           Text(
-            'Check back later for updates',
+            widget.isLocalSelected
+                ? 'Try disabling local filter'
+                : 'Check back later for updates',
             style: TextStyle(
               color: Colors.grey[600],
               fontSize: 14,
@@ -311,7 +342,6 @@ class _HomeTabState extends State<HomeTab>
         itemCount: cachedShorts.length + 
             (_controller!.categoryHasMoreData() ? 1 : 0),
         itemBuilder: (context, index) {
-          // Loading indicator at end
           if (index == cachedShorts.length) {
             return _buildLoadingIndicator();
           }

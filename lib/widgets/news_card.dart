@@ -35,7 +35,7 @@ class NewsCard extends StatelessWidget {
               Container(
                 height: MediaQuery.of(context).size.height * 0.35,
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                padding: const EdgeInsets.only(top: 12),
                 child: Stack(
                   children: [
                     // Image with rounded corners
@@ -78,7 +78,7 @@ class NewsCard extends StatelessWidget {
               // 📰 Scrollable Content Section
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 25, 20, 10),
+                  padding: const EdgeInsets.fromLTRB(8, 25, 8, 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -126,14 +126,14 @@ class NewsCard extends StatelessWidget {
 
           // Bookmark and Share buttons - POSITIONED AT IMAGE/TEXT BORDER
           Positioned(
-            top: MediaQuery.of(context).size.height * 0.35 - 18,
-            right: 22,
+            top: MediaQuery.of(context).size.height * 0.35 - 16,
+            right: 4,
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(60),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -207,8 +207,8 @@ class NewsCard extends StatelessWidget {
           // "Tap to know more" button - FIXED AT BOTTOM
           Positioned(
             bottom: 0,
-            left: 12,
-            right: 12,
+            left: 0,
+            right: 0,
             child: GestureDetector(
               onTap: () {
                 _launchURL(article.newsUrl);
