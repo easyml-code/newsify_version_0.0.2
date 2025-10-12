@@ -123,7 +123,7 @@ Future<List<NewsArticle>> fetchShorts({
           time: timeAgo,
           imageUrl: imageUrl,
           newsUrl: newsUrl,
-          readMore: newsTitle.length > 30 ? newsTitle.substring(0, 30) : newsTitle,
+          readMore: newsTitle.length > 40 ? newsTitle.substring(0, 40) : newsTitle,
           source: provider.isEmpty ? 'Unknown' : provider,
           location: location.isEmpty ? 'Unknown' : location,
         );

@@ -103,7 +103,7 @@ class _MainScreenState extends State<MainScreen> {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.only(left: 40, right: 40, top: 4, bottom: 4),
+            padding: const EdgeInsets.only(left: 40, right: 40, top: 0, bottom: 0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

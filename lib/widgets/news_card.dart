@@ -78,7 +78,7 @@ class NewsCard extends StatelessWidget {
               // 📰 Scrollable Content Section
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(8, 25, 8, 10),
+                  padding: const EdgeInsets.fromLTRB(18, 25, 18, 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -87,7 +87,7 @@ class NewsCard extends StatelessWidget {
                         article.title,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
                           height: 1.2,
                         ),
@@ -215,7 +215,7 @@ class NewsCard extends StatelessWidget {
               },
               child: Container(
                 margin: const EdgeInsets.only(bottom: 0),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: BoxDecoration(
                   color: Colors.grey[900]?.withOpacity(0.6),
                   borderRadius: const BorderRadius.only(
