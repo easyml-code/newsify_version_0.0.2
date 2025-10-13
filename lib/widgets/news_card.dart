@@ -5,6 +5,8 @@ import '../services/auth_service.dart';
 import '../screens/auth/auth_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'dart:ui';
+// import 
 
 class NewsCard extends StatefulWidget {
   final NewsArticle article;
@@ -207,6 +209,42 @@ class _NewsCardState extends State<NewsCard> {
               ),
             ],
           ),
+          
+          // Badge at top left
+          Positioned(
+            top: MediaQuery.of(context).size.height * 0.35 - 16,
+            left: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                // color: Colors.black.withOpacity(0.7),
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(60),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Image.asset(
+                      'assets/app/app_logo.png',
+                      width: 18, 
+                      height: 18, 
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Newsify',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
           // Bookmark and Share buttons
           Positioned(
@@ -253,38 +291,66 @@ class _NewsCardState extends State<NewsCard> {
             ),
           ),
 
-          // "Tap to know more" button
+          // "Tap to know more" section with blur + translucent overlay
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: GestureDetector(
               onTap: () => _launchURL(widget.article.newsUrl),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                decoration: BoxDecoration(
-                  color: Colors.grey[900]?.withOpacity(0.6),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                  ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
                 ),
-                child: Column(
+                child: Stack(
                   children: [
-                    Text(
-                      'Tap to know more',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                    // Background image (same news image)
+                    Image.network(
+                      widget.article.imageUrl,
+                      width: double.infinity,
+                      height: 80,
+                      fit: BoxFit.none,
+                    ),
+
+                    // Blur effect
+                    BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 0),
+                      child: Container(
+                        height: 80,
+                        color: Colors.black.withOpacity(0.70), // translucent layer
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.article.readMore,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
+
+                    // Text content
+                    Container(
+                      height: 80,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            widget.article.readMore,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Tap to know more',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -292,6 +358,7 @@ class _NewsCardState extends State<NewsCard> {
               ),
             ),
           ),
+
         ],
       ),
     );

@@ -264,7 +264,7 @@ class _AccountTabState extends State<AccountTab> {
         : (email.isNotEmpty ? email : (phone.isNotEmpty ? phone : 'Guest'));
 
     return Container(
-      margin: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(18),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.grey[900],
@@ -347,7 +347,7 @@ class _AccountTabState extends State<AccountTab> {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(color: Colors.grey[900]!, width: 1),
@@ -459,7 +459,6 @@ class _AccountTabState extends State<AccountTab> {
       ),
     );
   }
-
 
 // Add these fields to your State class (e.g. _AccountTabState)
 final Set<int> _showDelete = {}; // tracks which item indexes show delete button
@@ -611,8 +610,6 @@ Widget _buildBookmarksList() {
     },
   );
 }
-
-
 
 // Add this helper method to the _AccountTabState class
   String _getTimeAgo(String? timestamp) {
