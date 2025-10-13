@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/news_article.dart';
 import '../services/auth_service.dart';
+import '../services/share_service.dart';
 import '../screens/auth/auth_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
 import 'dart:ui';
-// import 
 
 class NewsCard extends StatefulWidget {
   final NewsArticle article;
@@ -19,8 +18,14 @@ class NewsCard extends StatefulWidget {
 
 class _NewsCardState extends State<NewsCard> {
   final AuthService _authService = AuthService();
+  final GlobalKey _screenshotKey = GlobalKey();
+  
   bool _isBookmarked = false;
   bool _isCheckingBookmark = true;
+  bool _isSharing = false;
+
+  // TODO: Replace with actual theme mode when you add that feature
+  bool get isDarkMode => true; // Currently always dark, change this later
 
   @override
   void initState() {
@@ -44,7 +49,6 @@ class _NewsCardState extends State<NewsCard> {
 
   Future<void> _handleBookmark() async {
     if (!_authService.isSignedIn) {
-      // Show login prompt
       if (mounted) {
         AuthScreen.showAuthBottomSheet(context);
       }
@@ -93,15 +97,32 @@ class _NewsCardState extends State<NewsCard> {
     }
   }
 
-  void _handleShare() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _ShareBottomSheet(
+  Future<void> _handleShareWithContext(BuildContext buttonContext) async {
+    if (_isSharing) return;
+
+    setState(() => _isSharing = true);
+
+    try {
+      await ShareService.shareWithButtonContext(
+        screenshotKey: _screenshotKey,
+        buttonContext: buttonContext,
         title: widget.article.title,
         url: widget.article.newsUrl,
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint('Error sharing: $e');
+      if (mounted) {
+        await ShareService.shareTextOnly(
+          title: widget.article.title,
+          url: widget.article.newsUrl,
+          context: buttonContext,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSharing = false);
+      }
+    }
   }
 
   Future<void> _launchURL(String url) async {
@@ -122,6 +143,25 @@ class _NewsCardState extends State<NewsCard> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Main visible card
+        _buildVisibleCard(),
+        
+        // Hidden screenshot layer (positioned off-screen, never visible)
+        Positioned(
+          left: -10000,
+          top: 0,
+          child: RepaintBoundary(
+            key: _screenshotKey,
+            child: _buildShareableContent(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVisibleCard() {
     return Container(
       color: Colors.black,
       child: Stack(
@@ -210,14 +250,13 @@ class _NewsCardState extends State<NewsCard> {
             ],
           ),
           
-          // Badge at top left
+          // Badge at top left - SAME POSITION IN BOTH VIEWS
           Positioned(
             top: MediaQuery.of(context).size.height * 0.35 - 16,
             left: 12,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
-                // color: Colors.black.withOpacity(0.7),
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(60),
               ),
@@ -246,7 +285,7 @@ class _NewsCardState extends State<NewsCard> {
             ),
           ),
 
-          // Bookmark and Share buttons
+          // Bookmark and Share buttons (ONLY in visible card)
           Positioned(
             top: MediaQuery.of(context).size.height * 0.35 - 16,
             right: 4,
@@ -279,11 +318,22 @@ class _NewsCardState extends State<NewsCard> {
                             ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: _handleShare,
-                    child: const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: Icon(Icons.share, color: Colors.white, size: 22),
+                  Builder(
+                    builder: (buttonContext) => GestureDetector(
+                      onTap: _isSharing ? null : () => _handleShareWithContext(buttonContext),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: _isSharing
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.share, color: Colors.white, size: 22),
+                      ),
                     ),
                   ),
                 ],
@@ -291,7 +341,7 @@ class _NewsCardState extends State<NewsCard> {
             ),
           ),
 
-          // "Tap to know more" section with blur + translucent overlay
+          // "Tap to know more" section (ONLY in visible card)
           Positioned(
             bottom: 0,
             left: 0,
@@ -305,24 +355,19 @@ class _NewsCardState extends State<NewsCard> {
                 ),
                 child: Stack(
                   children: [
-                    // Background image (same news image)
                     Image.network(
                       widget.article.imageUrl,
                       width: double.infinity,
                       height: 80,
                       fit: BoxFit.none,
                     ),
-
-                    // Blur effect
                     BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 8, sigmaY: 0),
                       child: Container(
                         height: 80,
-                        color: Colors.black.withOpacity(0.70), // translucent layer
+                        color: Colors.black.withOpacity(0.70),
                       ),
                     ),
-
-                    // Text content
                     Container(
                       height: 80,
                       alignment: Alignment.center,
@@ -358,128 +403,181 @@ class _NewsCardState extends State<NewsCard> {
               ),
             ),
           ),
-
         ],
       ),
     );
   }
+
+
+Widget _buildShareableContent() {
+  final screenWidth = MediaQuery.of(context).size.width;
+  final imageHeight = MediaQuery.of(context).size.height * 0.35;
+
+  // Theme-based colors
+  final backgroundColor = isDarkMode ? Colors.black : Colors.white;
+  final textColor = isDarkMode ? Colors.white : Colors.black;
+  final subtitleColor = isDarkMode ? Colors.grey[300] : Colors.grey[800];
+  final metaColor = isDarkMode ? Colors.grey[600] : Colors.grey[500];
+
+  return Stack(
+    children: [
+      // Main content in Column
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image
+          SizedBox(
+            height: imageHeight,
+            width: screenWidth,
+            child: Image.network(
+              widget.article.imageUrl,
+              width: screenWidth,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  color: Colors.grey[850],
+                  child: const Center(
+                    child: Icon(Icons.image, size: 60, color: Colors.grey),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Content section
+          Container(
+            width: screenWidth,
+            padding: const EdgeInsets.fromLTRB(18, 25, 18, 10),
+            color: backgroundColor,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.article.title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.article.content,
+                  style: TextStyle(
+                    color: subtitleColor,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.article.author != 'Unknown'
+                      ? '${widget.article.time} | ${widget.article.author} | ${widget.article.source}'
+                      : '${widget.article.time} | ${widget.article.source}',
+                  style: TextStyle(
+                    color: metaColor,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Footer
+          Container(
+            width: screenWidth,
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              border: Border(
+                top: BorderSide(
+                  color: isDarkMode ? Colors.grey[800]! : Colors.grey[300]!,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Image.asset(
+                      'assets/badges/playstore_badge.png',
+                      height: 20,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 6),
+                    Image.asset(
+                      'assets/badges/appstore_badge.png',
+                      height: 20,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Image.asset(
+                      'assets/app/app_logo.png',
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Newsify',
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+
+      // Independent brand badge (positioned)
+      Positioned(
+        top: imageHeight - 8,
+        left: 12,
+        child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(60),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Image.asset(
+                      'assets/app/app_logo.png',
+                      width: 18, 
+                      height: 18, 
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Newsify',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      ),
+    ],
+  );
 }
 
-// Share Bottom Sheet
-class _ShareBottomSheet extends StatelessWidget {
-  final String title;
-  final String url;
-
-  const _ShareBottomSheet({
-    required this.title,
-    required this.url,
-  });
-
-  Future<void> _copyLink(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: url));
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Link copied to clipboard'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
-  Future<void> _shareViaApps() async {
-    await Share.share(
-      '$title\n\nRead more: $url',
-      subject: title,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[700],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Title
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Share via Apps
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2196F3),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.share, color: Colors.white, size: 24),
-              ),
-              title: const Text(
-                'Share via...',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: _shareViaApps,
-            ),
-
-            // Copy Link
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.link, color: Colors.white, size: 24),
-              ),
-              title: const Text(
-                'Copy Link',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () => _copyLink(context),
-            ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
 }
