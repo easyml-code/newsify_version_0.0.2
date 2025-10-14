@@ -44,7 +44,6 @@ class _HomeTabState extends State<HomeTab>
   @override
   void didUpdateWidget(HomeTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reload data when local filter changes
     if (oldWidget.isLocalSelected != widget.isLocalSelected ||
         oldWidget.userDistrict != widget.userDistrict) {
       _controller?.updateLocationFilter(
@@ -347,7 +346,7 @@ class _HomeTabState extends State<HomeTab>
           }
 
           return Transform.translate(
-            offset: const Offset(0, -10),
+            offset: const Offset(0, 0),
             child: NewsCard(article: cachedShorts[index]),
           );
         },

@@ -84,18 +84,18 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
               // App Logo
               Container(
                 padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2196F3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'N',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                // decoration: BoxDecoration(
+                //   color: const Color(0xFF2196F3),
+                //   borderRadius: BorderRadius.circular(12),
+                // ),
+                // child: const Text(
+                //   'N',
+                //   style: TextStyle(
+                //     fontSize: 30,
+                //     fontWeight: FontWeight.bold,
+                //     color: Colors.white,
+                //   ),
+                // ),
               ),
               const SizedBox(height: 16),
 
