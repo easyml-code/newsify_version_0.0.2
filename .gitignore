@@ -1,1 +1,27 @@
 .env
+build/
+.dart_tool/
+
+# Flutter/Dart/Pub related
+.dart_tool/
+.packages
+.pub/
+build/
+
+# iOS
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Android
+android/.gradle/
+android/app/build/
+android/local.properties
+
+# Misc
+*.log
+*.lock
+*.tmp
+*.swp
+*.DS_Store
