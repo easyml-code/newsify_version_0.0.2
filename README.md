@@ -16,3 +16,4 @@ For help getting started with Flutter development, view the
 samples, guidance on mobile development, and a full API reference.
 # newsify_frontend
 # newsify_version_0.0.2
+# newsify_version_0.0.2
