@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import 'package:provider/provider.dart';
+import '../../providers/theme_provider.dart';
 import 'email_auth_screen.dart';
 import 'phone_auth_screen.dart';
 
@@ -59,10 +61,12 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         child: Padding(
@@ -75,35 +79,22 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[700],
+                  color: isDarkMode ? Colors.grey[700] : Colors.grey[300],
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 24),
 
-              // App Logo
               Container(
                 padding: const EdgeInsets.all(15),
-                // decoration: BoxDecoration(
-                //   color: const Color(0xFF2196F3),
-                //   borderRadius: BorderRadius.circular(12),
-                // ),
-                // child: const Text(
-                //   'N',
-                //   style: TextStyle(
-                //     fontSize: 30,
-                //     fontWeight: FontWeight.bold,
-                //     color: Colors.white,
-                //   ),
-                // ),
               ),
               const SizedBox(height: 16),
 
               // Welcome Text
-              const Text(
+              Text(
                 'Welcome',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: isDarkMode ? Colors.white : Colors.black,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -112,7 +103,7 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
               Text(
                 'Sign in to save your preferences',
                 style: TextStyle(
-                  color: Colors.grey[400],
+                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
                   fontSize: 14,
                 ),
               ),
@@ -123,8 +114,8 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
                 onTap: _isLoading ? null : _handleGoogleSignIn,
                 icon: Icons.g_mobiledata,
                 label: 'Sign in with Google',
-                backgroundColor: Colors.white,
-                textColor: Colors.black,
+                backgroundColor: isDarkMode ? Colors.white : Colors.grey[800]!,
+                textColor: isDarkMode ? Colors.black : Colors.white,
               ),
               const SizedBox(height: 12),
 
@@ -153,7 +144,7 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
                 'By continuing, you agree to our Terms of Service\nand Privacy Policy',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.grey[600],
+                  color: isDarkMode ? Colors.grey[600] : Colors.grey[500],
                   fontSize: 12,
                 ),
               ),

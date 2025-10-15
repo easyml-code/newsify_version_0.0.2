@@ -18,6 +18,8 @@ class _AccountTabState extends State<AccountTab> {
   Map<String, dynamic>? _userProfile;
   List<Map<String, dynamic>> _bookmarks = [];
   bool _isLoading = true;
+  bool _isSelectMode = false;
+  final Set<int> _selectedBookmarks = {};
 
   @override
   void initState() {
@@ -152,9 +154,14 @@ class _AccountTabState extends State<AccountTab> {
                   onPressed: _openSettings,
                   child: Text(
                     'Feedback',
-                    style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white : Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 0),
               ],
               IconButton(
                 icon: Icon(
@@ -163,12 +170,13 @@ class _AccountTabState extends State<AccountTab> {
                 ),
                 onPressed: _openSettings,
               ),
+              const SizedBox(width: 8),
             ],
           ),
           body: SingleChildScrollView(
             child: Column(
               children: [
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
                 
                 _authService.isSignedIn
                     ? _buildUserProfileCard(isDarkMode)
@@ -362,87 +370,348 @@ class _AccountTabState extends State<AccountTab> {
     );
   }
 
-  Widget _buildBookmarksSection(bool isDarkMode) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isDarkMode ? Colors.grey[900]! : Colors.grey[300]!,
-                width: 1,
-              ),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.bookmark_border,
-                      color: isDarkMode ? Colors.white : Colors.black,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Saved',
-                      style: TextStyle(
-                        color: isDarkMode ? Colors.white : Colors.black,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                if (_bookmarks.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2196F3),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_bookmarks.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
+// Replace the _buildBookmarksSection method
+Widget _buildBookmarksSection(bool isDarkMode) {
+  return Column(
+    children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isDarkMode ? Colors.grey[900]! : Colors.grey[300]!,
+              width: 1,
             ),
           ),
         ),
-        
-        _authService.isSignedIn
-            ? (_bookmarks.isEmpty
-                ? _buildEmptyBookmarksState(isDarkMode)
-                : _buildBookmarksList(isDarkMode))
-            : _buildSignInPromptForBookmarks(isDarkMode),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.bookmark_border,
+                    color: isDarkMode ? Colors.white : Colors.black,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    'Saved',
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white : Colors.black,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              if (_bookmarks.isNotEmpty)
+                _isSelectMode
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          color: Colors.red,
+                        ),
+                        onPressed: _selectedBookmarks.isEmpty
+                            ? null
+                            : () => _deleteSelectedBookmarks(isDarkMode),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2196F3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_bookmarks.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+            ],
+          ),
+        ),
+      ),
+      
+      _authService.isSignedIn
+          ? (_bookmarks.isEmpty
+              ? _buildEmptyBookmarksState(isDarkMode)
+              : _buildBookmarksList(isDarkMode))
+          : _buildSignInPromptForBookmarks(isDarkMode),
+    ],
+  );
+}
+
+// Add this new method for deleting selected bookmarks
+Future<void> _deleteSelectedBookmarks(bool isDarkMode) async {
+  if (_selectedBookmarks.isEmpty) return;
+
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
+      title: Text(
+        'Delete Bookmarks',
+        style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+      ),
+      content: Text(
+        'Are you sure you want to delete ${_selectedBookmarks.length} bookmark(s)?',
+        style: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black87),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text(
+            'Delete',
+            style: TextStyle(color: Colors.red),
+          ),
+        ),
       ],
-    );
+    ),
+  );
+
+  if (confirm == true) {
+    final selectedIndices = _selectedBookmarks.toList();
+    for (final index in selectedIndices) {
+      if (index < _bookmarks.length) {
+        try {
+          await _authService.removeBookmark(_bookmarks[index]['news_url']);
+        } catch (_) {}
+      }
+    }
+    
+    setState(() {
+      _selectedBookmarks.clear();
+      _isSelectMode = false;
+    });
+    
+    await _loadUserData();
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${selectedIndices.length} bookmark(s) removed'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
+}
+
+// Replace the _buildBookmarksList method
+Widget _buildBookmarksList(bool isDarkMode) {
+  return Column(
+    children: [
+      if (_isSelectMode)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    if (_selectedBookmarks.length == _bookmarks.length) {
+                      _selectedBookmarks.clear();
+                    } else {
+                      _selectedBookmarks.addAll(
+                        List.generate(_bookmarks.length, (index) => index),
+                      );
+                    }
+                  });
+                },
+                icon: Icon(
+                  _selectedBookmarks.length == _bookmarks.length
+                      ? Icons.check_box
+                      : Icons.check_box_outline_blank,
+                  color: const Color(0xFF2196F3),
+                ),
+                label: Text(
+                  _selectedBookmarks.length == _bookmarks.length
+                      ? 'Deselect All'
+                      : 'Select All',
+                  style: const TextStyle(color: Color(0xFF2196F3)),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isSelectMode = false;
+                    _selectedBookmarks.clear();
+                  });
+                },
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _bookmarks.length,
+        itemBuilder: (context, index) {
+          final bookmark = _bookmarks[index];
+          final isSelected = _selectedBookmarks.contains(index);
+
+          return GestureDetector(
+            onTap: () {
+              if (_isSelectMode) {
+                setState(() {
+                  if (isSelected) {
+                    _selectedBookmarks.remove(index);
+                  } else {
+                    _selectedBookmarks.add(index);
+                  }
+                });
+              } else {
+                _openBookmarkedNews(bookmark);
+              }
+            },
+            onLongPress: () {
+              if (!_isSelectMode) {
+                setState(() {
+                  _isSelectMode = true;
+                  _selectedBookmarks.add(index);
+                });
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDarkMode 
+                    ? Colors.black.withOpacity(0.25) 
+                    : Colors.grey[200],
+                borderRadius: BorderRadius.circular(14),
+                border: isSelected
+                    ? Border.all(color: const Color(0xFF2196F3), width: 2)
+                    : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_isSelectMode)
+                          Container(
+                            width: 40,
+                            height: 80,
+                            child: Center(
+                              child: Icon(
+                                isSelected
+                                    ? Icons.check_circle
+                                    : Icons.circle_outlined,
+                                color: isSelected
+                                    ? const Color(0xFF2196F3)
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            height: 80,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  bookmark['title'] ?? 'Untitled',
+                                  style: TextStyle(
+                                    color: isDarkMode ? Colors.white : Colors.black,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.access_time,
+                                      size: 12,
+                                      color: isDarkMode ? Colors.grey[300] : Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _getTimeAgo(bookmark['bookmarked_at']),
+                                      style: TextStyle(
+                                        color: isDarkMode ? Colors.white70 : Colors.black54,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 120,
+                          height: 80,
+                          padding: const EdgeInsets.all(6),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: bookmark['image_url'] != null
+                                ? Image.network(
+                                    bookmark['image_url'],
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                  )
+                                : Icon(
+                                    Icons.image,
+                                    color: isDarkMode ? Colors.grey : Colors.grey[600],
+                                    size: 40,
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ],
+  );
+}
 
   Widget _buildEmptyBookmarksState(bool isDarkMode) {
     return Padding(
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.all(0),
       child: Column(
         children: [
           const SizedBox(height: 60),
-          Text(
-            'Its Empty Here',
-            style: TextStyle(
-              color: isDarkMode ? Colors.white : Colors.black,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          // Text(
+          //   'Its Empty Here',
+          //   style: TextStyle(
+          //     color: isDarkMode ? Colors.white : Colors.black,
+          //     fontSize: 24,
+          //     fontWeight: FontWeight.bold,
+          //   ),
+          // ),
           const SizedBox(height: 12),
           Text(
             'Tap on the bookmark icon to save a story',
@@ -462,11 +731,11 @@ class _AccountTabState extends State<AccountTab> {
       child: Column(
         children: [
           const SizedBox(height: 60),
-          Icon(
-            Icons.bookmark_border,
-            size: 60,
-            color: isDarkMode ? Colors.grey[700] : Colors.grey[400],
-          ),
+          // Icon(
+          //   Icons.bookmark_border,
+          //   size: 60,
+          //   color: isDarkMode ? Colors.grey[700] : Colors.grey[400],
+          // ),
           const SizedBox(height: 16),
           Text(
             'Sign In to Save Stories',
@@ -487,158 +756,6 @@ class _AccountTabState extends State<AccountTab> {
           ),
         ],
       ),
-    );
-  }
-
-  final Set<int> _showDelete = {};
-  final Duration _autoHideDuration = const Duration(seconds: 2);
-
-  Widget _buildBookmarksList(bool isDarkMode) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _bookmarks.length,
-      itemBuilder: (context, index) {
-        final bookmark = _bookmarks[index];
-        final bool showDelete = _showDelete.contains(index);
-
-        return GestureDetector(
-          onTap: () => _openBookmarkedNews(bookmark),
-          onLongPress: () {
-            setState(() => _showDelete.add(index));
-            Future.delayed(_autoHideDuration, () {
-              if (mounted) setState(() => _showDelete.remove(index));
-            });
-          },
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: isDarkMode 
-                  ? Colors.black.withOpacity(0.25) 
-                  : Colors.grey[200],
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Stack(
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          height: 80,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                bookmark['title'] ?? 'Untitled',
-                                style: TextStyle(
-                                  color: isDarkMode ? Colors.white : Colors.black,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.access_time,
-                                    size: 12,
-                                    color: isDarkMode ? Colors.grey[300] : Colors.grey[600],
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    _getTimeAgo(bookmark['bookmarked_at']),
-                                    style: TextStyle(
-                                      color: isDarkMode ? Colors.white70 : Colors.black54,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Container(
-                        width: 120,
-                        height: 80,
-                        padding: const EdgeInsets.all(6),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: bookmark['image_url'] != null
-                              ? Image.network(
-                                  bookmark['image_url'],
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                )
-                              : Icon(
-                                  Icons.image,
-                                  color: isDarkMode ? Colors.grey : Colors.grey[600],
-                                  size: 40,
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (showDelete)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () async {
-                          try {
-                            await _authService.removeBookmark(bookmark['news_url']);
-                            _loadUserData();
-                          } catch (_) {}
-                          setState(() => _showDelete.remove(index));
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Bookmark removed'),
-                                backgroundColor: Colors.red,
-                                duration: Duration(seconds: 1),
-                              ),
-                            );
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.redAccent, width: 1.2),
-                          ),
-                          child: const Text(
-                            "Delete",
-                            style: TextStyle(
-                              color: Colors.redAccent,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 

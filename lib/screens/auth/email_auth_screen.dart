@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import 'package:provider/provider.dart';
+import '../../providers/theme_provider.dart';
 
 class EmailAuthScreen extends StatefulWidget {
   const EmailAuthScreen({super.key});
@@ -111,125 +113,129 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     }
   }
 
+
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          _isSignUp ? "Sign Up" : "Sign In",
-          style: const TextStyle(color: Colors.white),
-        ),
+Widget build(BuildContext context) {
+  final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+  
+  return Scaffold(
+    backgroundColor: isDarkMode ? Colors.black : Colors.white,
+    appBar: AppBar(
+      backgroundColor: isDarkMode ? Colors.black : Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back, color: isDarkMode ? Colors.white : Colors.black),
+        onPressed: () => Navigator.pop(context),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_isSignUp) ...[
-                _buildTextField("First Name", _firstNameController),
-                const SizedBox(height: 16),
-                _buildTextField("Last Name", _lastNameController),
-                const SizedBox(height: 16),
-              ],
-              _buildTextField("Email", _emailController,
-                  icon: Icons.email, type: TextInputType.emailAddress),
+      title: Text(
+        _isSignUp ? "Sign Up" : "Sign In",
+        style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+      ),
+    ),
+    body: SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_isSignUp) ...[
+              _buildTextField("First Name", _firstNameController, isDarkMode),
               const SizedBox(height: 16),
-              _buildPasswordField("Password", _passwordController),
+              _buildTextField("Last Name", _lastNameController, isDarkMode),
               const SizedBox(height: 16),
-              if (_isSignUp) _buildPasswordField("Confirm Password", _confirmPasswordController),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleAuth,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2196F3),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+            ],
+            _buildTextField("Email", _emailController, isDarkMode,
+                icon: Icons.email, type: TextInputType.emailAddress),
+            const SizedBox(height: 16),
+            _buildPasswordField("Password", _passwordController, isDarkMode),
+            const SizedBox(height: 16),
+            if (_isSignUp) _buildPasswordField("Confirm Password", _confirmPasswordController, isDarkMode),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _handleAuth,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2196F3),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          _isSignUp ? "Sign Up" : "Sign In",
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white),
-                        ),
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        _isSignUp ? "Sign Up" : "Sign In",
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: TextButton(
+                onPressed: () => setState(() => _isSignUp = !_isSignUp),
+                child: Text(
+                  _isSignUp
+                      ? "Already have an account? Sign In"
+                      : "Don't have an account? Sign Up",
+                  style: const TextStyle(color: Color(0xFF2196F3)),
                 ),
               ),
-              const SizedBox(height: 20),
-              Center(
-                child: TextButton(
-                  onPressed: () => setState(() => _isSignUp = !_isSignUp),
-                  child: Text(
-                    _isSignUp
-                        ? "Already have an account? Sign In"
-                        : "Don't have an account? Sign Up",
-                    style: const TextStyle(color: Color(0xFF2196F3)),
-                  ),
-                ),
-              )
-            ],
-          ),
+            )
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildTextField(String label, TextEditingController controller,
-      {IconData? icon, TextInputType type = TextInputType.text}) {
-    return TextField(
-      controller: controller,
-      keyboardType: type,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        filled: true,
-        fillColor: Colors.grey[900],
-        prefixIcon: icon != null ? Icon(icon, color: Colors.grey[600]) : null,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
+Widget _buildTextField(String label, TextEditingController controller, bool isDarkMode,
+    {IconData? icon, TextInputType type = TextInputType.text}) {
+  return TextField(
+    controller: controller,
+    keyboardType: type,
+    style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
+      filled: true,
+      fillColor: isDarkMode ? Colors.grey[900] : Colors.grey[100],
+      prefixIcon: icon != null ? Icon(icon, color: isDarkMode ? Colors.grey[600] : Colors.grey[500]) : null,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildPasswordField(String label, TextEditingController controller) {
-    return TextField(
-      controller: controller,
-      obscureText: _obscurePassword,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        filled: true,
-        fillColor: Colors.grey[900],
-        prefixIcon: Icon(Icons.lock, color: Colors.grey[600]),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword ? Icons.visibility_off : Icons.visibility,
-            color: Colors.grey[600],
-          ),
-          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+Widget _buildPasswordField(String label, TextEditingController controller, bool isDarkMode) {
+  return TextField(
+    controller: controller,
+    obscureText: _obscurePassword,
+    style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
+      filled: true,
+      fillColor: isDarkMode ? Colors.grey[900] : Colors.grey[100],
+      prefixIcon: Icon(Icons.lock, color: isDarkMode ? Colors.grey[600] : Colors.grey[500]),
+      suffixIcon: IconButton(
+        icon: Icon(
+          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+          color: isDarkMode ? Colors.grey[600] : Colors.grey[500],
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
+        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
       ),
-    );
-  }
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+    ),
+  );
+}
+
 }

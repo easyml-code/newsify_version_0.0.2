@@ -19,7 +19,7 @@ class AuthService {
   Future<bool> signInWithGoogle() async {
     try {
       final result = await _supabase.auth.signInWithOAuth(
-        Provider.google,
+        OAuthProvider.google,
         redirectTo: 'io.supabase.newsify://login-callback/',
       );
 

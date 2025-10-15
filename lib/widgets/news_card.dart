@@ -230,7 +230,7 @@ class _NewsCardState extends State<NewsCard> {
                             widget.article.title,
                             style: TextStyle(
                               color: isDarkMode ? Colors.white : Colors.black,
-                              fontSize: 22,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               height: 1.2,
                             ),
@@ -271,13 +271,13 @@ class _NewsCardState extends State<NewsCard> {
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.black : Colors.white,
                     borderRadius: BorderRadius.circular(60),
-                    boxShadow: !isDarkMode ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ] : null,
+                    // boxShadow: !isDarkMode ? [
+                    //   BoxShadow(
+                    //     color: Colors.black.withOpacity(0.1),
+                    //     blurRadius: 8,
+                    //     offset: const Offset(0, 2),
+                    //   ),
+                    // ] : null,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -312,13 +312,13 @@ class _NewsCardState extends State<NewsCard> {
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.black : Colors.white,
                     borderRadius: BorderRadius.circular(60),
-                    boxShadow: !isDarkMode ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ] : null,
+                    // boxShadow: !isDarkMode ? [
+                    //   BoxShadow(
+                    //     color: Colors.black.withOpacity(0.1),
+                    //     blurRadius: 8,
+                    //     offset: const Offset(0, 2),
+                    //   ),
+                    // ] : null,
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                   child: Row(

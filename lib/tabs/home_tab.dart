@@ -108,55 +108,46 @@ class _HomeTabState extends State<HomeTab>
   }
 
   Widget _buildLocalButton() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 2, top: 12, bottom: 12),
-      child: GestureDetector(
-        onTap: widget.isLoadingLocation ? null : widget.onLocalToggle,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          decoration: BoxDecoration(
+  return Padding(
+    padding: const EdgeInsets.only(left: 24, top: 0, bottom: 0),
+    child: GestureDetector(
+      onTap: widget.isLoadingLocation ? null : widget.onLocalToggle,
+      child: Container(
+        // padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        decoration: BoxDecoration(
+          color: widget.isLocalSelected
+              ? const Color(0xFF2196F3).withOpacity(0.15)
+              : Colors.grey[900],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
             color: widget.isLocalSelected
-                ? const Color(0xFF2196F3).withOpacity(0.15)
-                : Colors.grey[900],
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.isLocalSelected
-                  ? const Color(0xFF2196F3)
-                  : Colors.grey[800]!,
-              width: 1,
-            ),
+                ? const Color(0xFF2196F3)
+                : Colors.grey[800]!,
+            width: 1,
           ),
-          child: widget.isLoadingLocation
-              ? const SizedBox(
-                  width: 45,
-                  height: 20,
-                  child: Center(
-                    child: SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF2196F3),
-                      ),
-                    ),
-                  ),
-                )
-              : Text(
-                  'Local',
-                  style: TextStyle(
-                    color: widget.isLocalSelected
-                        ? const Color(0xFF2196F3)
-                        : Colors.grey[400],
-                    fontSize: 14,
-                    fontWeight: widget.isLocalSelected
-                        ? FontWeight.w600
-                        : FontWeight.w500,
-                  ),
-                ),
         ),
+        child: widget.isLoadingLocation
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: widget.isLocalSelected
+                      ? const Color(0xFF2196F3)
+                      : Colors.grey[400],
+                ),
+              )
+            : Icon(
+                Icons.radio_button_checked,
+                size: 20,
+                color: widget.isLocalSelected
+                    ? const Color(0xFF2196F3)
+                    : Colors.grey[400],
+              ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildCategoryTabs() {
     return Expanded(
@@ -175,7 +166,7 @@ class _HomeTabState extends State<HomeTab>
           fontSize: 16,
           fontWeight: FontWeight.normal,
         ),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         tabAlignment: TabAlignment.start,
         padding: EdgeInsets.zero,
         tabs: _controller!.categories.map((category) {
@@ -204,7 +195,7 @@ class _HomeTabState extends State<HomeTab>
 
   Widget _buildGradientFade() {
     return Positioned(
-      left: 70,
+      left: 50,
       top: 0,
       bottom: 0,
       child: IgnorePointer(
@@ -216,7 +207,7 @@ class _HomeTabState extends State<HomeTab>
               end: Alignment.centerRight,
               colors: [
                 Colors.black,
-                Colors.black.withOpacity(0.0),
+                Colors.black.withOpacity(0.2),
               ],
             ),
           ),
@@ -322,7 +313,15 @@ class _HomeTabState extends State<HomeTab>
               backgroundColor: const Color(0xFF2196F3),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
-            child: const Text('Refresh'),
+            child: const Text(
+              'Refresh',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+            
+            
           ),
         ],
       ),
