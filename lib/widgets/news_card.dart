@@ -203,18 +203,18 @@ class _NewsCardState extends State<NewsCard> {
                             );
                           },
                         ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: IconButton(
-                            icon: Icon(
-                              Icons.more_horiz,
-                              color: isDarkMode ? Colors.white : Colors.black,
-                              size: 26,
-                            ),
-                            onPressed: () {},
-                          ),
-                        ),
+                        // Positioned(
+                        //   top: 4,
+                        //   right: 4,
+                        //   child: IconButton(
+                        //     icon: Icon(
+                        //       Icons.more_horiz,
+                        //       color: isDarkMode ? Colors.white : Colors.black,
+                        //       size: 26,
+                        //     ),
+                        //     onPressed: () {},
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),
