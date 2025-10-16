@@ -109,7 +109,7 @@ class _HomeTabState extends State<HomeTab>
 
   Widget _buildLocalButton() {
   return Padding(
-    padding: const EdgeInsets.only(left: 24, top: 0, bottom: 0),
+    padding: const EdgeInsets.only(left: 24, top: 0, bottom:2),
     child: GestureDetector(
       onTap: widget.isLoadingLocation ? null : widget.onLocalToggle,
       child: Container(
